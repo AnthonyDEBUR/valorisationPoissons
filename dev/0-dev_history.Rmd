@@ -19,7 +19,7 @@ fusen::fill_description(
     Title = "Package pour valoriser les données disponibles sous la base ASPE",
     Description = "Valorise les données de pêches électriques saisies sous ASPE.",
     `Authors@R` = c(
-      person("Anthony", "DE BURGHRAVE", role = c("aut", "cre"))
+      person("Anthony", "DE BURGHRAVE", email = "a.deburghrave@gmail.com", role = c("aut", "cre"))
     )
   )
 )
