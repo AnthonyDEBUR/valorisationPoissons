@@ -4,7 +4,8 @@ Title: Package Pour Valoriser Les Données Disponibles Sous La Base ASPE
 Description: Valorise les données de pêches électriques saisies sous ASPE.
 Authors@R: person(given = "Anthony",
        family = "DE BURGHRAVE",
-       role = c("aut", "cre"))
+       role = c("aut", "cre"),
+       email = "a.deburghrave@gmail.com")
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
