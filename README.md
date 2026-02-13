@@ -28,6 +28,10 @@ pak::pak("AnthonyDEBUR/valorisationPoissons")
 
 Full documentation website on: https://AnthonyDEBUR.github.io/valorisationPoissons
 
+## Documentation
+
+Full documentation website on: https://AnthonyDEBUR.github.io/valorisationPoissons
+
 ## Example
 
 This is a basic example which shows you how to solve a common problem:
