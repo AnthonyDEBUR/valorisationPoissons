@@ -2273,6 +2273,222 @@ make_habitats_peche_planche <- function(
 
 ```
 
+# descriptif opération
+```{r function}
+
+#' Commanditaires & Opérateurs ASPE par date 
+#' Descriptif opération
+#'
+#' Interroge la base ASPE via un fichier YAML de connexion et extrait,
+#' pour une station ou un point ASPE, les acteurs :
+#' - `commanditaire_libelle_aspe` (paneau du haut),
+#' - `operateur_libelle_aspe` (paneau du bas).
+#' Puis les modes de pêche
+#' - `protocole_peche` (paneau du haut),
+#' - `moyen_prospection` (paneau du bas),
+#'
+#' L'axe des x représente les dates (facteur ordonné), l'axe des y
+#' les acteurs (une ligne par valeur). Les points indiquent la présence
+#' de l'acteur pour la date donnée. Les couleurs différencient le type
+#' d'acteur (Commanditaire vs Opérateur) et le graphique est facetté
+#' en quatre panneaux empilés partie haute : (haut = Commanditaire ; bas = Opérateur).
+#' partie basse (haut = protocole_peche, bas = moyen_prospection)
+#'
+#' @param titre Titre du graphique (défaut : "Descriptif opération").
+#'
+#' @return Un objet ggplot2 facetté (2 lignes : Commanditaire en haut, Opérateur en bas),
+#' avec en y les acteurs et, pour chaque date en x, un point si l'acteur est présent.
+#'
+#' @examples
+#' \dontrun{
+#' graph_descriptif_operation(
+#'   yaml_config = "config/connexion.yml",
+#'   code_station = "04216000",
+#'   annee_debut = 2000,
+#'   n_last = 12
+#' )
+#' }
+#' @export
+graph_descriptif_operation <- function(
+  yaml_config,
+  code_station = NULL,
+  code_point_prelevement_aspe = NULL,
+  annee_debut = 1950,
+  annee_fin = as.integer(format(Sys.Date(), "%Y")),
+  n_last = 10,
+  titre = "Descriptif opération",
+  normalize_accents = TRUE   # option pour fusionner "A pied" et "À pied"
+){
+  library(DBI)
+  library(dplyr)
+  library(ggplot2)
+  library(lubridate)
+  library(stringr)
+
+  if (!is.null(code_station) & !is.null(code_point_prelevement_aspe)) {
+    warning("Les deux paramètres sont fournis : code_station prioritaire.")
+  }
+  use_station <- !is.null(code_station)
+
+  con <- connect_pg(yaml_config)
+  on.exit(DBI::dbDisconnect(con))
+
+  # --- Requête SQL : on récupère les 4 champs utiles + date ---
+  if (use_station) {
+    sql <- glue::glue("
+      SELECT
+        s.code_station,
+        o.date_operation::date AS date_op,
+        o.commanditaire_libelle_aspe,
+        o.operateur_libelle_aspe,
+        o.protocole_peche,
+        o.moyen_prospection
+      FROM qe.aspe_operations o
+      LEFT JOIN qe.aspe_stations s
+        ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
+      WHERE s.code_station = '{code_station}'
+        AND EXTRACT(YEAR FROM o.date_operation::date)
+            BETWEEN {annee_debut} AND {annee_fin}
+      ORDER BY date_op DESC
+    ")
+  } else {
+    sql <- glue::glue("
+      SELECT
+        s.code_station,
+        o.date_operation::date AS date_op,
+        o.commanditaire_libelle_aspe,
+        o.operateur_libelle_aspe,
+        o.protocole_peche,
+        o.moyen_prospection
+      FROM qe.aspe_operations o
+      LEFT JOIN qe.aspe_stations s
+        ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
+      WHERE o.code_point_prelevement_aspe = '{code_point_prelevement_aspe}'
+        AND EXTRACT(YEAR FROM o.date_operation::date)
+            BETWEEN {annee_debut} AND {annee_fin}
+      ORDER BY date_op DESC
+    ")
+  }
+
+  df <- DBI::dbGetQuery(con, sql)
+  if (nrow(df) == 0) {
+    message("Aucune donnée disponible.")
+    return(NULL)
+  }
+
+  # --- Normalisation des champs libellés (trim, squish, NA si vide) ---
+  df <- df %>%
+    mutate(
+      commanditaire_libelle_aspe = na_if(str_squish(trimws(commanditaire_libelle_aspe)), ""),
+      operateur_libelle_aspe     = na_if(str_squish(trimws(operateur_libelle_aspe)), ""),
+      protocole_peche            = na_if(str_squish(trimws(protocole_peche)), ""),
+      moyen_prospection          = na_if(str_squish(trimws(moyen_prospection)), "")
+    )
+
+  # Optionnel : déaccentuer pour fusionner "À pied" / "A pied"
+  if (isTRUE(normalize_accents)) {
+    # nécessite stringi (présent en général)
+    if (!requireNamespace("stringi", quietly = TRUE)) {
+      warning("Le package 'stringi' n'est pas disponible : normalize_accents ignoré.")
+    } else {
+      df <- df %>%
+        mutate(
+          protocole_peche   = stringi::stri_trans_general(protocole_peche, "Latin-ASCII"),
+          moyen_prospection = stringi::stri_trans_general(moyen_prospection, "Latin-ASCII")
+        )
+    }
+  }
+
+  # --- n dernières dates ---
+  last_dates <- df %>%
+    distinct(date_op) %>%
+    arrange(desc(date_op)) %>%
+    slice(1:n_last) %>%
+    arrange(date_op)
+
+  # --- Construire les 4 ensembles ---
+  cmd <- df %>%
+    semi_join(last_dates, by = "date_op") %>%
+    transmute(date_op, type = "Commanditaire", acteur = commanditaire_libelle_aspe) %>%
+    filter(!is.na(acteur)) %>%
+    distinct()
+
+  op <- df %>%
+    semi_join(last_dates, by = "date_op") %>%
+    transmute(date_op, type = "Opérateur", acteur = operateur_libelle_aspe) %>%
+    filter(!is.na(acteur)) %>%
+    distinct()
+
+  protocole <- df %>%
+    semi_join(last_dates, by = "date_op") %>%
+    transmute(date_op, type = "Protocole", acteur = protocole_peche) %>%
+    filter(!is.na(acteur)) %>%
+    distinct()
+
+  prospection <- df %>%
+    semi_join(last_dates, by = "date_op") %>%
+    transmute(date_op, type = "Prospection", acteur = moyen_prospection) %>%
+    filter(!is.na(acteur)) %>%
+    distinct()
+
+  # --- Fusion en long ---
+  df_long <- bind_rows(cmd, op, protocole, prospection)
+
+if (nrow(df_long) == 0) {
+  message("Aucun commanditaire, opérateur, protocole ou prospection pour les dernières dates.")
+  return(NULL)
+}
+
+# Facteur type
+df_long$type <- factor(
+  df_long$type,
+  levels = c("Commanditaire", "Opérateur", "Protocole", "Prospection")
+)
+
+# Facteur dates
+df_long$date_label <- format(df_long$date_op, "%d/%m/%y")
+df_long$date_label <- factor(df_long$date_label, 
+                             levels = rev(unique(df_long$date_label)))
+
+# --- Couleurs par type ---
+  cols_type <- c(
+    "Commanditaire" = "#1f78b4",
+    "Opérateur"     = "#e31a1c",
+    "Protocole"     = "grey40",
+    "Prospection"   = "orange"
+  )
+
+  # --- Graphique ---
+  p <- ggplot(df_long, aes(x = date_label, y = acteur, color = type)) +
+    geom_point(size = 3) +
+    facet_grid(
+      rows   = vars(type),
+      scales = "free_y",
+      space  = "free_y",
+      switch = "y"
+    ) +
+    scale_color_manual(values = cols_type) +
+    labs(title = titre, x = "", y = "") +
+    theme_minimal(base_size = 12) +
+    theme(
+      legend.position     = "none",
+      strip.placement     = "outside",
+      strip.text.y.left   = element_text(face = "bold"),
+      axis.text.x         = element_text(angle = 90, vjust = 0.5, hjust = 1),
+      plot.title          = element_text(face = "bold"),
+      panel.grid.major.y  = element_line(color = "#dddddd"),
+      panel.spacing.y     = unit(10, "pt")
+    )
+
+  return(p)
+}
+
+```
+
+
+
+
+
 # Histogramme des profondeurs par faciès (ASPE) - ne fonctionne pas - bug sous hubeau
 ```{r function}
 #' Histogramme des profondeurs par faciès (ASPE)
