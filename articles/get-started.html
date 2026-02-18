@@ -119,7 +119,7 @@ If it is the first time you use {fusen}, after 'description', you can directly r
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co">#' Histogramme des effectifs par date/passage</span></span>
 <span><span class="co">#'</span></span>
-<span><span class="co">#' @param yaml_config Chemin du YAML de connexion Postgres</span></span>
+<span><span class="co">#' @param yaml_path Chemin du YAML de connexion Postgres</span></span>
 <span><span class="co">#' @param station Code Sandre de la station</span></span>
 <span><span class="co">#' @param annee_debut Année de début</span></span>
 <span><span class="co">#' @param annee_fin Année de fin (défaut = année courante)</span></span>
@@ -135,9 +135,8 @@ If it is the first time you use {fusen}, after 'description', you can directly r
 <span><span class="co">#' plot_effectifs_histogram(".../config.yml", "04199200", 2000, only_with_ipr = TRUE)</span></span>
 <span><span class="co">#' }</span></span>
 <span><span class="co">#' @export</span></span>
-<span><span class="co">#' @noRd  </span></span>
 <span><span class="va">plot_effectifs_histogram</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span></span>
-<span>  <span class="va">yaml_config</span>,</span>
+<span>  <span class="va">yaml_path</span>,</span>
 <span>  <span class="va">station</span>,</span>
 <span>  <span class="va">annee_debut</span>,</span>
 <span>  <span class="va">annee_fin</span>      <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/format.html" class="external-link">format</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">"%Y"</span><span class="op">)</span><span class="op">)</span>,</span>
@@ -146,7 +145,7 @@ If it is the first time you use {fusen}, after 'description', you can directly r
 <span>  <span class="va">only_with_ipr</span> <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  <span class="va">n_last</span>        <span class="op">=</span> <span class="fl">12</span></span>
 <span><span class="op">)</span><span class="op">{</span></span>
-<span>  <span class="va">con</span> <span class="op">&lt;-</span> <span class="fu">connect_pg</span><span class="op">(</span><span class="va">yaml_config</span><span class="op">)</span></span>
+<span>  <span class="va">con</span> <span class="op">&lt;-</span> <span class="fu">connect_pg</span><span class="op">(</span><span class="va">yaml_path</span><span class="op">)</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/on.exit.html" class="external-link">on.exit</a></span><span class="op">(</span><span class="kw"><a href="https://rdrr.io/r/base/try.html" class="external-link">try</a></span><span class="op">(</span><span class="fu">DBI</span><span class="fu">::</span><span class="fu">dbDisconnect</span><span class="op">(</span><span class="va">con</span><span class="op">)</span>, silent <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, add <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span></span>
 <span>  <span class="va">schema_safe</span> <span class="op">&lt;-</span> <span class="fu">sanitize_schema</span><span class="op">(</span><span class="va">schema</span><span class="op">)</span></span>
@@ -233,7 +232,7 @@ If it is the first time you use {fusen}, after 'description', you can directly r
 <span>  <span class="va">n</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/levels.html" class="external-link">levels</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">passage</span><span class="op">)</span><span class="op">)</span></span>
 <span>  <span class="va">pal</span> <span class="op">&lt;-</span> <span class="fu">scales</span><span class="fu">::</span><span class="fu">hue_pal</span><span class="op">(</span><span class="op">)</span><span class="op">(</span><span class="va">n</span><span class="op">)</span>; <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">pal</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/levels.html" class="external-link">levels</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">passage</span><span class="op">)</span></span>
 <span></span>
-<span>  <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">ggplot</span><span class="op">(</span><span class="va">df</span>, <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">df</span><span class="op">$</span><span class="va">label_date</span>, y <span class="op">=</span> <span class="va">effectif</span>, fill <span class="op">=</span> <span class="va">passage</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">ggplot</span><span class="op">(</span><span class="va">df</span>, <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">label_date</span>, y <span class="op">=</span> <span class="va">effectif</span>, fill <span class="op">=</span> <span class="va">passage</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>    <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">geom_col</span><span class="op">(</span>width <span class="op">=</span> <span class="va">bar_width</span>, color <span class="op">=</span> <span class="st">"black"</span>, linewidth <span class="op">=</span> <span class="fl">0.4</span><span class="op">)</span> <span class="op">+</span></span>
 <span>    <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">geom_text</span><span class="op">(</span></span>
 <span>      data <span class="op">=</span> <span class="va">df_tot</span>,</span>
@@ -245,7 +244,7 @@ If it is the first time you use {fusen}, after 'description', you can directly r
 <span>    <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">scale_y_continuous</span><span class="op">(</span>expand <span class="op">=</span> <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">expansion</span><span class="op">(</span>mult <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.10</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
 <span>    <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">scale_fill_manual</span><span class="op">(</span>values <span class="op">=</span> <span class="va">pal</span>, name <span class="op">=</span> <span class="st">"Passage"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>    <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">labs</span><span class="op">(</span>title <span class="op">=</span> <span class="st">"Effectif total"</span>, x <span class="op">=</span> <span class="cn">NULL</span>, y <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">theme_minimal</span><span class="op">(</span>base_size <span class="op">=</span> <span class="fl">12</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">theme_bw</span><span class="op">(</span>base_size <span class="op">=</span> <span class="fl">12</span><span class="op">)</span> <span class="op">+</span></span>
 <span>    <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">theme</span><span class="op">(</span>panel.grid.minor <span class="op">=</span> <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">element_blank</span><span class="op">(</span><span class="op">)</span>,</span>
 <span>                   axis.text.x <span class="op">=</span> <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">element_text</span><span class="op">(</span>angle <span class="op">=</span> <span class="fl">90</span>, hjust <span class="op">=</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">}</span></span></code></pre></div>
@@ -300,6 +299,14 @@ If it is the first time you use {fusen}, after 'description', you can directly r
 </div>
 <div class="section level2">
 <h2 id="planche-synthèse-habitats">Planche synthèse habitats<a class="anchor" aria-label="anchor" href="#planche-synth%C3%A8se-habitats"></a>
+</h2>
+</div>
+<div class="section level2">
+<h2 id="planche-synthèse-opération">Planche synthèse opération<a class="anchor" aria-label="anchor" href="#planche-synth%C3%A8se-op%C3%A9ration"></a>
+</h2>
+</div>
+<div class="section level2">
+<h2 id="descriptif-opération">descriptif opération<a class="anchor" aria-label="anchor" href="#descriptif-op%C3%A9ration"></a>
 </h2>
 </div>
 <div class="section level2">

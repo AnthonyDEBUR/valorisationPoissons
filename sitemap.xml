@@ -9,9 +9,17 @@
 <url><loc>/news/index.html</loc></url>
 <url><loc>/reference/graph_descriptif_operation.html</loc></url>
 <url><loc>/reference/index.html</loc></url>
+<url><loc>/reference/make_habitats_peche_planche.html</loc></url>
+<url><loc>/reference/make_ipr_planche.html</loc></url>
+<url><loc>/reference/make_operations_peche_planche.html</loc></url>
 <url><loc>/reference/pipe.html</loc></url>
 <url><loc>/reference/plot_conductivite_pechee_histogram.html</loc></url>
+<url><loc>/reference/plot_effectifs_histogram.html</loc></url>
+<url><loc>/reference/plot_facies_importance.html</loc></url>
 <url><loc>/reference/plot_facies_profondeur_histogram.html</loc></url>
+<url><loc>/reference/plot_habitat_heatmap.html</loc></url>
+<url><loc>/reference/plot_ipr_histogram.html</loc></url>
+<url><loc>/reference/plot_ipr_metrics.html</loc></url>
 <url><loc>/reference/plot_largeur_lame_eau_pechee_histogram.html</loc></url>
 <url><loc>/reference/plot_longueur_pechee_histogram.html</loc></url>
 <url><loc>/reference/plot_profondeur_histogram.html</loc></url>
