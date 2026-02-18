@@ -2,7 +2,7 @@
 
 #' Histogramme des effectifs par date/passage
 #'
-#' @param yaml_config Chemin du YAML de connexion Postgres
+#' @param yaml_path Chemin du YAML de connexion Postgres
 #' @param station Code Sandre de la station
 #' @param annee_debut Année de début
 #' @param annee_fin Année de fin (défaut = année courante)
@@ -18,9 +18,8 @@
 #' plot_effectifs_histogram(".../config.yml", "04199200", 2000, only_with_ipr = TRUE)
 #' }
 #' @export
-#' @noRd  
 plot_effectifs_histogram <- function(
-  yaml_config,
+  yaml_path,
   station,
   annee_debut,
   annee_fin      = as.numeric(format(Sys.Date(), "%Y")),
@@ -29,7 +28,7 @@ plot_effectifs_histogram <- function(
   only_with_ipr = FALSE,
   n_last        = 12
 ){
-  con <- connect_pg(yaml_config)
+  con <- connect_pg(yaml_path)
   on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
   schema_safe <- sanitize_schema(schema)
@@ -118,7 +117,7 @@ plot_effectifs_histogram <- function(
   n   <- length(levels(df$passage))
   pal <- scales::hue_pal()(n); names(pal) <- levels(df$passage)
 
-  ggplot2::ggplot(df, ggplot2::aes(x = df$label_date, y = effectif, fill = passage)) +
+  ggplot2::ggplot(df, ggplot2::aes(x = label_date, y = effectif, fill = passage)) +
     ggplot2::geom_col(width = bar_width, color = "black", linewidth = 0.4) +
     ggplot2::geom_text(
       data = df_tot,
@@ -130,7 +129,7 @@ plot_effectifs_histogram <- function(
     ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.10))) +
     ggplot2::scale_fill_manual(values = pal, name = "Passage") +
     ggplot2::labs(title = "Effectif total", x = NULL, y = NULL) +
-    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme_bw(base_size = 12) +
     ggplot2::theme(panel.grid.minor = ggplot2::element_blank(),
                    axis.text.x = ggplot2::element_text(angle = 90, hjust = 1))
 }

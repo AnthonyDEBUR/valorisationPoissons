@@ -5,7 +5,7 @@
 \title{Histogramme des surfaces de pêche ASPE pour une station}
 \usage{
 plot_surface_pechee_histogram(
-  yaml_config,
+  yaml_path,
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
   annee_debut = 1950,
@@ -15,7 +15,7 @@ plot_surface_pechee_histogram(
 )
 }
 \arguments{
-\item{yaml_config}{Chemin vers le fichier YAML contenant les informations de
+\item{yaml_path}{Chemin vers le fichier YAML contenant les informations de
 connexion PostgreSQL.}
 
 \item{code_station}{[\code{character(1)}]\
@@ -68,7 +68,7 @@ strictement chronologique dans le graphique.
 \examples{
 \dontrun{
 plot_surface_pechee_histogram(
- yaml_config = "C:/workspace/gwilenalim/yaml/config.yml",
+ yaml_path = "C:/workspace/gwilenalim/yaml/config.yml",
  code_station = "04216050",
  annee_debut  = 2000,
  annee_fin    = 2025

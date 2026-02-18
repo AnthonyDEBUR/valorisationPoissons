@@ -2,7 +2,7 @@
 
 #' Planche synthèse IPR (notes, effectifs, métriques)
 #'
-#' @param yaml_config Chemin du YAML de connexion
+#' @param yaml_path Chemin du YAML de connexion
 #' @param station Code Sandre
 #' @param annee_debut Année de début (défaut 1950)
 #' @param annee_fin Année de fin (défaut = année courante)
@@ -23,9 +23,8 @@
 #' make_ipr_planche(".../config.yml", "04216050", annee_debut = 2000, n_last = 12)
 #' }
 #' @export
-#' @noRd  
 make_ipr_planche <- function(
-  yaml_config,
+  yaml_path,
   station,
   annee_debut = 1950,
   annee_fin   = as.numeric(format(Sys.Date(), "%Y")),
@@ -42,9 +41,9 @@ make_ipr_planche <- function(
   if (is.null(titre))      titre      <- glue::glue("{station} — Synthèse IPR")
   if (is.null(sous_titre)) sous_titre <- glue::glue("Synthèse réalisée le {format(Sys.Date(), '%d/%m/%Y')} par Eaux & Vilaine")
 
-  graph_ipr <- plot_ipr_histogram(yaml_config, station, annee_debut, annee_fin, schema, n_last = n_last)
-  graph_eff <- plot_effectifs_histogram(yaml_config, station, annee_debut, annee_fin, schema, only_with_ipr = TRUE, n_last = n_last)
-  graph_met <- plot_ipr_metrics(yaml_config, station, indicateurs, annee_debut, annee_fin, schema, table = "aspe_ipr",
+  graph_ipr <- plot_ipr_histogram(yaml_path, station, annee_debut, annee_fin, schema, n_last = n_last)
+  graph_eff <- plot_effectifs_histogram(yaml_path, station, annee_debut, annee_fin, schema, only_with_ipr = TRUE, n_last = n_last)
+  graph_met <- plot_ipr_metrics(yaml_path, station, indicateurs, annee_debut, annee_fin, schema, table = "aspe_ipr",
                                 n_lignes_facets = 2, n_last = n_last)
 
   if (is.null(graph_ipr) && is.null(graph_eff) && is.null(graph_met)) return(NULL)
@@ -54,9 +53,8 @@ make_ipr_planche <- function(
     ggplot2::theme_void() +
     ggplot2::theme(plot.title = ggplot2::element_text(size = 16, face = "bold", hjust = 0.5),
                    plot.subtitle = ggplot2::element_text(size = 11, hjust = 0.5))
-  block_top    <- cowplot::get_title(title_gg)
-  block_middle <- cowplot::plot_grid(graph_ipr, graph_eff, nrow = 1, rel_widths = c(3, 2))
-  planche      <- cowplot::plot_grid(block_top, block_middle, graph_met, nrow = 3, rel_heights = c(0.20, 1, 2))
+   block_middle <- cowplot::plot_grid(graph_ipr, graph_eff, nrow = 1, rel_widths = c(3, 2))
+  planche      <- cowplot::plot_grid(title_gg, block_middle, graph_met, nrow = 3, rel_heights = c(0.40, 1, 2))
 
   if (!is.null(file_out)) {
     cowplot::save_plot(filename = file_out, plot = planche, base_width = width, base_height = height, dpi = dpi, bg = "white")

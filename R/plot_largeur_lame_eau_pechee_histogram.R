@@ -18,7 +18,7 @@
 #' Les dates sont affichées au format \%d/\%m/\%y, ordonnées chronologiquement,
 #' et pivoteées de 90° pour faciliter la lecture.
 #'
-#' @param yaml_config Chemin vers le fichier YAML contenant les informations de
+#' @param yaml_path Chemin vers le fichier YAML contenant les informations de
 #'   connexion PostgreSQL.
 #' @param code_station \[`character(1)`\]\  
 #'   Code Sandre de la station. Si renseigné conjointement avec
@@ -47,7 +47,7 @@
 #' @examples
 #' \dontrun{
 #'plot_largeur_lame_eau_pechee_histogram(
-#'  yaml_config = "C:/workspace/gwilenalim/yaml/config.yml",
+#'  yaml_path = "C:/workspace/gwilenalim/yaml/config.yml",
 #'  code_station = "04216050",
 #'  annee_debut  = 2000,
 #'  annee_fin    = 2025
@@ -56,7 +56,7 @@
 #'
 #' @export
 plot_largeur_lame_eau_pechee_histogram <- function(
-    yaml_config,
+    yaml_path,
     code_station = NULL,
     code_point_prelevement_aspe = NULL,
     annee_debut = 1950,
@@ -69,9 +69,9 @@ plot_largeur_lame_eau_pechee_histogram <- function(
     library(ggplot2)
     library(lubridate)
 
-    # ----------------------------------------------------------------------
+    
     # Gestion des paramètres code_station / code_point_prelevement_aspe
-    # ----------------------------------------------------------------------
+    
 
     if (!is.null(code_station) & !is.null(code_point_prelevement_aspe)) {
         warning("Les deux paramètres code_station et code_point_prelevement_aspe sont fournis. 
@@ -81,15 +81,15 @@ plot_largeur_lame_eau_pechee_histogram <- function(
     # Choix du filtre
     use_station <- !is.null(code_station)
 
-    # ----------------------------------------------------------------------
+    
     # Connexion PG depuis YAML
-    # ----------------------------------------------------------------------
-     con <- connect_pg(yaml_config)
+    
+     con <- connect_pg(yaml_path)
     on.exit(DBI::dbDisconnect(con))
 
-    # ----------------------------------------------------------------------
+    
     # Construction de la requête SQL
-    # ----------------------------------------------------------------------
+    
 
 if (use_station) {
     # → On filtre via aspe_stations puis on rejoint les opérations
@@ -131,9 +131,9 @@ if (use_station) {
         return(NULL)
     }
 
-    # ----------------------------------------------------------------------
+    
     # Sélection des n dernières opérations à date unique
-    # ----------------------------------------------------------------------
+    
     df <- df %>%
         distinct(date_op, .keep_all = TRUE) %>%
         arrange(desc(date_op)) %>%
@@ -144,15 +144,15 @@ if (use_station) {
     df$date_label <- format(df$date_op, "%d/%m/%y")
     df$date_label <- factor(df$date_label, levels = df$date_label)
 
-    # ----------------------------------------------------------------------
+    
     # Graphique
-    # ----------------------------------------------------------------------
+    
     p <- ggplot(df, aes(x = date_label, y = largeur_lame_eau)) +
         geom_col(fill = "grey30") +
         labs(title = titre,
              x = "",
              y = "") +
-        theme_minimal(base_size = 12) +
+        theme_bw(base_size = 12) +
         theme(
             axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
             plot.title = element_text(face = "bold")

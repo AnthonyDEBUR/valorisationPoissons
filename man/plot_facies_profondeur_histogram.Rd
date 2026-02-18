@@ -5,7 +5,7 @@
 \title{Histogramme des profondeurs par faciès (ASPE)}
 \usage{
 plot_facies_profondeur_histogram(
-  yaml_config,
+  yaml_path,
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
   annee_debut = 1950,
@@ -15,7 +15,7 @@ plot_facies_profondeur_histogram(
 )
 }
 \arguments{
-\item{yaml_config}{\code{character(1)}
+\item{yaml_path}{\code{character(1)}
 Chemin vers le fichier YAML contenant les informations de connexion PostgreSQL.}
 
 \item{code_station}{\code{character(1)}
@@ -83,7 +83,7 @@ permettre de comparer les faciès au sein d'une même date.
 \examples{
 \dontrun{
 plot_facies_profondeur_histogram(
-  yaml_config = "config/connexion.yml",
+  yaml_path = "config/connexion.yml",
   code_station = "04216000",
   annee_debut = 2010,
   n_last = 12

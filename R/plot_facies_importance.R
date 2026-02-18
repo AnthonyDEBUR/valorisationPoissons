@@ -2,7 +2,7 @@
 
 #' Histogramme des faciès (Courant / Plat / Profond)
 #'
-#' @param yaml_config Chemin YAML
+#' @param yaml_path Chemin YAML
 #' @param code_station Code Sandre de la station (ou NULL si `code_point_prelevement_aspe` fourni)
 #' @param code_point_prelevement_aspe Code du point ASPE (ou NULL si `code_station` fourni)
 #' @param annee_debut Année de début (défaut 1900)
@@ -16,16 +16,15 @@
 #' plot_facies_importance(".../config.yml", code_station = "04207400", annee_debut = 1950, n_last = 12)
 #' }
 #' @export
-#' @noRd  
 plot_facies_importance <- function(
-  yaml_config,
+  yaml_path,
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
   annee_debut = NULL,
   annee_fin   = lubridate::year(Sys.Date()),
   n_last = 12
 ){
-  con <- connect_pg(yaml_config)
+  con <- connect_pg(yaml_path)
   on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
   if (!is.null(code_station)) {
@@ -123,7 +122,7 @@ plot_facies_importance <- function(
     ggplot2::geom_col(color = "black") +
     ggplot2::scale_fill_manual(values = facies_colors, name = "Faciès", drop = FALSE, na.translate = FALSE) +
     ggplot2::labs(title = "Importance relative des faciès", x = NULL, y = "Pourcentage") +
-    ggplot2::theme_minimal(base_size = 13) +
+    ggplot2::theme_bw(base_size = 13) +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, hjust = 1),
                    panel.grid.minor = ggplot2::element_blank())
 }

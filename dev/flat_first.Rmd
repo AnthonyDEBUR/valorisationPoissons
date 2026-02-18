@@ -56,7 +56,7 @@ sanitize_schema <- function(schema) {
 #' user/username, password/pwd, sslmode) ou sous un nœud parmi
 #' `postgres`, `default`, `db`, `database`.
 #'
-#' @param yaml_config Chemin vers le fichier YAML
+#' @param yaml_path Chemin vers le fichier YAML
 #'
 #' @return Un objet `DBIConnection`
 #'
@@ -68,8 +68,8 @@ sanitize_schema <- function(schema) {
 #' @keywords internal
 #' @noRd
 #' @export
-connect_pg <- function(yaml_config) {
-  cfg <- yaml::read_yaml(yaml_config)
+connect_pg <- function(yaml_path) {
+  cfg <- yaml::read_yaml(yaml_path)
   src <- cfg
   for (node in c("postgres", "default", "db", "database")) {
     if (is.list(cfg[[node]])) { src <- cfg[[node]]; break }
@@ -97,7 +97,7 @@ connect_pg <- function(yaml_config) {
 ```{r function}
 #' Histogramme IPR par date d'opération
 #'
-#' @param yaml_config Chemin du YAML de connexion Postgres
+#' @param yaml_path Chemin du YAML de connexion Postgres
 #' @param station Code Sandre de la station (ex. "04199200")
 #' @param annee_debut Année de début
 #' @param annee_fin Année de fin (défaut = année courante)
@@ -113,9 +113,8 @@ connect_pg <- function(yaml_config) {
 #' plot_ipr_histogram("C:/workspace/gwilenalim/yaml/config.yml", "04199200", 2000, n_last = 12)
 #' }
 #' @export
-#' @noRd  
 plot_ipr_histogram <- function(
-  yaml_config,
+  yaml_path,
   station,
   annee_debut,
   annee_fin  = as.numeric(format(Sys.Date(), "%Y")),
@@ -124,7 +123,7 @@ plot_ipr_histogram <- function(
   bar_width = 0.9,
   n_last    = 12
 ){
-  con <- connect_pg(yaml_config)
+  con <- connect_pg(yaml_path)
   on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
   schema_safe <- sanitize_schema(schema)
@@ -181,7 +180,7 @@ plot_ipr_histogram <- function(
     ggplot2::scale_fill_manual(values = palette, limits = levels_classes, breaks = levels_classes, drop = FALSE, name = "Classe de\nqualité") +
     ggplot2::geom_hline(yintercept = c(5,16,25,36), linetype = "dashed", color = "grey40", linewidth = 0.3) +
     ggplot2::labs(title = title, x = NULL, y = NULL, fill = "Classe IPR") +
-    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme_bw(base_size = 12) +
     ggplot2::theme(panel.grid.minor = ggplot2::element_blank(),
                    ggplot2::element_text(angle = 90, hjust = 1))
 }
@@ -191,7 +190,7 @@ plot_ipr_histogram <- function(
 ```{r}
 #' Histogramme des effectifs par date/passage
 #'
-#' @param yaml_config Chemin du YAML de connexion Postgres
+#' @param yaml_path Chemin du YAML de connexion Postgres
 #' @param station Code Sandre de la station
 #' @param annee_debut Année de début
 #' @param annee_fin Année de fin (défaut = année courante)
@@ -207,9 +206,8 @@ plot_ipr_histogram <- function(
 #' plot_effectifs_histogram(".../config.yml", "04199200", 2000, only_with_ipr = TRUE)
 #' }
 #' @export
-#' @noRd  
 plot_effectifs_histogram <- function(
-  yaml_config,
+  yaml_path,
   station,
   annee_debut,
   annee_fin      = as.numeric(format(Sys.Date(), "%Y")),
@@ -218,7 +216,7 @@ plot_effectifs_histogram <- function(
   only_with_ipr = FALSE,
   n_last        = 12
 ){
-  con <- connect_pg(yaml_config)
+  con <- connect_pg(yaml_path)
   on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
   schema_safe <- sanitize_schema(schema)
@@ -305,7 +303,7 @@ plot_effectifs_histogram <- function(
   n   <- length(levels(df$passage))
   pal <- scales::hue_pal()(n); names(pal) <- levels(df$passage)
 
-  ggplot2::ggplot(df, ggplot2::aes(x = df$label_date, y = effectif, fill = passage)) +
+  ggplot2::ggplot(df, ggplot2::aes(x = label_date, y = effectif, fill = passage)) +
     ggplot2::geom_col(width = bar_width, color = "black", linewidth = 0.4) +
     ggplot2::geom_text(
       data = df_tot,
@@ -317,7 +315,7 @@ plot_effectifs_histogram <- function(
     ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.10))) +
     ggplot2::scale_fill_manual(values = pal, name = "Passage") +
     ggplot2::labs(title = "Effectif total", x = NULL, y = NULL) +
-    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme_bw(base_size = 12) +
     ggplot2::theme(panel.grid.minor = ggplot2::element_blank(),
                    axis.text.x = ggplot2::element_text(angle = 90, hjust = 1))
 }
@@ -328,7 +326,7 @@ plot_effectifs_histogram <- function(
 ```{r function}
 #' Histogramme des effectifs par date/passage
 #'
-#' @param yaml_config Chemin du YAML de connexion Postgres
+#' @param yaml_path Chemin du YAML de connexion Postgres
 #' @param station Code Sandre de la station
 #' @param annee_debut Année de début
 #' @param annee_fin Année de fin (défaut = année courante)
@@ -344,9 +342,8 @@ plot_effectifs_histogram <- function(
 #' plot_effectifs_histogram(".../config.yml", "04199200", 2000, only_with_ipr = TRUE)
 #' }
 #' @export
-#' @noRd  
 plot_effectifs_histogram <- function(
-  yaml_config,
+  yaml_path,
   station,
   annee_debut,
   annee_fin      = as.numeric(format(Sys.Date(), "%Y")),
@@ -355,7 +352,7 @@ plot_effectifs_histogram <- function(
   only_with_ipr = FALSE,
   n_last        = 12
 ){
-  con <- connect_pg(yaml_config)
+  con <- connect_pg(yaml_path)
   on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
   schema_safe <- sanitize_schema(schema)
@@ -444,7 +441,7 @@ plot_effectifs_histogram <- function(
   n   <- length(levels(df$passage))
   pal <- scales::hue_pal()(n); names(pal) <- levels(df$passage)
 
-  ggplot2::ggplot(df, ggplot2::aes(x = df$label_date, y = effectif, fill = passage)) +
+  ggplot2::ggplot(df, ggplot2::aes(x = label_date, y = effectif, fill = passage)) +
     ggplot2::geom_col(width = bar_width, color = "black", linewidth = 0.4) +
     ggplot2::geom_text(
       data = df_tot,
@@ -456,7 +453,7 @@ plot_effectifs_histogram <- function(
     ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0, 0.10))) +
     ggplot2::scale_fill_manual(values = pal, name = "Passage") +
     ggplot2::labs(title = "Effectif total", x = NULL, y = NULL) +
-    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme_bw(base_size = 12) +
     ggplot2::theme(panel.grid.minor = ggplot2::element_blank(),
                    axis.text.x = ggplot2::element_text(angle = 90, hjust = 1))
 }
@@ -468,7 +465,7 @@ plot_effectifs_histogram <- function(
 ```{r function}
 #' Histogramme des métriques IPR (Observé vs Modélisé)
 #'
-#' @param yaml_config Chemin du YAML de connexion
+#' @param yaml_path Chemin du YAML de connexion
 #' @param station Code Sandre de la station
 #' @param indicateurs Vecteur parmi `c("DII","DIO","DIT","DTI","NEL","NER","NTE")`
 #' @param annee_debut Année de début (défaut 1970)
@@ -492,9 +489,8 @@ plot_effectifs_histogram <- function(
 #' plot_ipr_metrics(".../config.yml", "04199200", c("NER","NEL","DTI"), 2000, 2025, n_last = 12)
 #' }
 #' @export
-#' @noRd  
 plot_ipr_metrics <- function(
-  yaml_config,
+  yaml_path,
   station,
   indicateurs = c("DII","DIO","DIT","DTI","NEL","NER","NTE"),
   annee_debut   = 1970,
@@ -520,7 +516,7 @@ plot_ipr_metrics <- function(
     ), call. = FALSE)
   }
 
-  con <- connect_pg(yaml_config)
+  con <- connect_pg(yaml_path)
   on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
   schema_safe <- sanitize_schema(schema)
@@ -626,7 +622,7 @@ plot_ipr_metrics <- function(
 ```{r function}
 #' Planche synthèse IPR (notes, effectifs, métriques)
 #'
-#' @param yaml_config Chemin du YAML de connexion
+#' @param yaml_path Chemin du YAML de connexion
 #' @param station Code Sandre
 #' @param annee_debut Année de début (défaut 1950)
 #' @param annee_fin Année de fin (défaut = année courante)
@@ -647,9 +643,8 @@ plot_ipr_metrics <- function(
 #' make_ipr_planche(".../config.yml", "04216050", annee_debut = 2000, n_last = 12)
 #' }
 #' @export
-#' @noRd  
 make_ipr_planche <- function(
-  yaml_config,
+  yaml_path,
   station,
   annee_debut = 1950,
   annee_fin   = as.numeric(format(Sys.Date(), "%Y")),
@@ -666,9 +661,9 @@ make_ipr_planche <- function(
   if (is.null(titre))      titre      <- glue::glue("{station} — Synthèse IPR")
   if (is.null(sous_titre)) sous_titre <- glue::glue("Synthèse réalisée le {format(Sys.Date(), '%d/%m/%Y')} par Eaux & Vilaine")
 
-  graph_ipr <- plot_ipr_histogram(yaml_config, station, annee_debut, annee_fin, schema, n_last = n_last)
-  graph_eff <- plot_effectifs_histogram(yaml_config, station, annee_debut, annee_fin, schema, only_with_ipr = TRUE, n_last = n_last)
-  graph_met <- plot_ipr_metrics(yaml_config, station, indicateurs, annee_debut, annee_fin, schema, table = "aspe_ipr",
+  graph_ipr <- plot_ipr_histogram(yaml_path, station, annee_debut, annee_fin, schema, n_last = n_last)
+  graph_eff <- plot_effectifs_histogram(yaml_path, station, annee_debut, annee_fin, schema, only_with_ipr = TRUE, n_last = n_last)
+  graph_met <- plot_ipr_metrics(yaml_path, station, indicateurs, annee_debut, annee_fin, schema, table = "aspe_ipr",
                                 n_lignes_facets = 2, n_last = n_last)
 
   if (is.null(graph_ipr) && is.null(graph_eff) && is.null(graph_met)) return(NULL)
@@ -678,9 +673,8 @@ make_ipr_planche <- function(
     ggplot2::theme_void() +
     ggplot2::theme(plot.title = ggplot2::element_text(size = 16, face = "bold", hjust = 0.5),
                    plot.subtitle = ggplot2::element_text(size = 11, hjust = 0.5))
-  block_top    <- cowplot::get_title(title_gg)
-  block_middle <- cowplot::plot_grid(graph_ipr, graph_eff, nrow = 1, rel_widths = c(3, 2))
-  planche      <- cowplot::plot_grid(block_top, block_middle, graph_met, nrow = 3, rel_heights = c(0.20, 1, 2))
+   block_middle <- cowplot::plot_grid(graph_ipr, graph_eff, nrow = 1, rel_widths = c(3, 2))
+  planche      <- cowplot::plot_grid(title_gg, block_middle, graph_met, nrow = 3, rel_heights = c(0.40, 1, 2))
 
   if (!is.null(file_out)) {
     cowplot::save_plot(filename = file_out, plot = planche, base_width = width, base_height = height, dpi = dpi, bg = "white")
@@ -715,11 +709,12 @@ make_ipr_planche <- function(
 #' plot_habitat_heatmap(".../config.yml", code_station = "04216050", annee_debut = 2000)
 #' }
 #' @export
-#' @noRd  
 plot_habitat_heatmap <- function(
   yaml_path,
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
+  titre=NULL,
+  sous_titre=NULL,
   annee_debut = 1950,
   annee_fin   = lubridate::year(Sys.Date()),
   n_last = 12,
@@ -753,6 +748,10 @@ plot_habitat_heatmap <- function(
     stop("Fournir soit `code_station`, soit `code_point_prelevement_aspe`.", call. = FALSE)
   }
 
+   if(is.null(titre)){titre <- paste("Conditions / habitats —", if(!is.null(code_station)) code_station else code_point_prelevement_aspe)}
+  
+     if(is.null(sous_titre)){sous_titre <- ""}
+  
   vars_habitats <- c(
     "abondance_abri_vegetal_aquatique","abondance_abris_rocheux","abondance_embacles_souches",
     "abondance_sous_berges","abondance_trous_fosses","abondance_vegetation_aquatique",
@@ -805,7 +804,7 @@ plot_habitat_heatmap <- function(
   if (!length(vars_non_vides)) {
     return(
       ggplot2::ggplot() +
-        ggplot2::theme_minimal(base_size = 13) +
+        ggplot2::theme_bw(base_size = 13) +
         ggplot2::labs(
           title = "Conditions / habitats — variables vides",
           subtitle = paste0(annee_debut, "–", annee_fin),
@@ -900,18 +899,23 @@ plot_habitat_heatmap <- function(
                                  breaks = c("Bas/Faible","Moyen/Stable","Haut/Fort"), drop = FALSE)
   }
 
-  p +
+  p<-p +
     ggplot2::scale_x_discrete(drop = FALSE) +
-    ggplot2::theme_minimal(base_size = 13) +
+    ggplot2::theme_bw(base_size = 13) +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, hjust = 1, vjust = 0.5),
                    axis.title.x = ggplot2::element_blank(),
                    axis.title.y = ggplot2::element_blank(),
                    legend.position = "right",
                    panel.grid = ggplot2::element_line(color = "grey95")) +
     ggplot2::labs(
-      title = paste("Conditions / habitats —", if(!is.null(code_station)) code_station else code_point_prelevement_aspe),
-      subtitle = paste0(annee_debut, "–", annee_fin)
+      title = titre
     )
+  
+  if (sous_titre!=""){p<-p + ggplot2::labs(
+      subtitle = sous_titre)}
+  
+  return(p)
+  
 }
 
 ```
@@ -921,7 +925,7 @@ plot_habitat_heatmap <- function(
 ```{r function}
 #' Histogramme des faciès (Courant / Plat / Profond)
 #'
-#' @param yaml_config Chemin YAML
+#' @param yaml_path Chemin YAML
 #' @param code_station Code Sandre de la station (ou NULL si `code_point_prelevement_aspe` fourni)
 #' @param code_point_prelevement_aspe Code du point ASPE (ou NULL si `code_station` fourni)
 #' @param annee_debut Année de début (défaut 1900)
@@ -935,16 +939,15 @@ plot_habitat_heatmap <- function(
 #' plot_facies_importance(".../config.yml", code_station = "04207400", annee_debut = 1950, n_last = 12)
 #' }
 #' @export
-#' @noRd  
 plot_facies_importance <- function(
-  yaml_config,
+  yaml_path,
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
   annee_debut = NULL,
   annee_fin   = lubridate::year(Sys.Date()),
   n_last = 12
 ){
-  con <- connect_pg(yaml_config)
+  con <- connect_pg(yaml_path)
   on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
   if (!is.null(code_station)) {
@@ -1042,7 +1045,7 @@ plot_facies_importance <- function(
     ggplot2::geom_col(color = "black") +
     ggplot2::scale_fill_manual(values = facies_colors, name = "Faciès", drop = FALSE, na.translate = FALSE) +
     ggplot2::labs(title = "Importance relative des faciès", x = NULL, y = "Pourcentage") +
-    ggplot2::theme_minimal(base_size = 13) +
+    ggplot2::theme_bw(base_size = 13) +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, hjust = 1),
                    panel.grid.minor = ggplot2::element_blank())
 }
@@ -1070,7 +1073,7 @@ plot_facies_importance <- function(
 #' Les dates sont affichées au format \%d/\%m/\%y, ordonnées chronologiquement,
 #' et pivoteées de 90° pour faciliter la lecture.
 #'
-#' @param yaml_config Chemin vers le fichier YAML contenant les informations de
+#' @param yaml_path Chemin vers le fichier YAML contenant les informations de
 #'   connexion PostgreSQL.
 #' @param code_station \[`character(1)`\]\  
 #'   Code Sandre de la station. Si renseigné conjointement avec
@@ -1099,7 +1102,7 @@ plot_facies_importance <- function(
 #' @examples
 #' \dontrun{
 #' plot_profondeur_histogram(
-#'   yaml_config = "config/connexion.yml",
+#'   yaml_path = "config/connexion.yml",
 #'   code_station = "04216000",
 #'   annee_debut = 2000,
 #'   n_last = 12
@@ -1108,7 +1111,7 @@ plot_facies_importance <- function(
 #'
 #' @export
 plot_profondeur_histogram <- function(
-    yaml_config,
+    yaml_path,
     code_station = NULL,
     code_point_prelevement_aspe = NULL,
     annee_debut = 1950,
@@ -1121,9 +1124,9 @@ plot_profondeur_histogram <- function(
     library(ggplot2)
     library(lubridate)
 
-    # ----------------------------------------------------------------------
+    
     # Gestion des paramètres code_station / code_point_prelevement_aspe
-    # ----------------------------------------------------------------------
+    
 
     if (!is.null(code_station) & !is.null(code_point_prelevement_aspe)) {
         warning("Les deux paramètres code_station et code_point_prelevement_aspe sont fournis. 
@@ -1133,15 +1136,15 @@ plot_profondeur_histogram <- function(
     # Choix du filtre
     use_station <- !is.null(code_station)
 
-    # ----------------------------------------------------------------------
+    
     # Connexion PG depuis YAML
-    # ----------------------------------------------------------------------
-     con <- connect_pg(yaml_config)
+    
+     con <- connect_pg(yaml_path)
     on.exit(DBI::dbDisconnect(con))
 
-    # ----------------------------------------------------------------------
+    
     # Construction de la requête SQL
-    # ----------------------------------------------------------------------
+    
 
 if (use_station) {
     # → On filtre via aspe_stations puis on rejoint les opérations
@@ -1183,9 +1186,9 @@ if (use_station) {
         return(NULL)
     }
 
-    # ----------------------------------------------------------------------
+    
     # Sélection des n dernières opérations à date unique
-    # ----------------------------------------------------------------------
+    
     df <- df %>%
         distinct(date_op, .keep_all = TRUE) %>%
         arrange(desc(date_op)) %>%
@@ -1196,15 +1199,15 @@ if (use_station) {
     df$date_label <- format(df$date_op, "%d/%m/%y")
     df$date_label <- factor(df$date_label, levels = df$date_label)
 
-    # ----------------------------------------------------------------------
+    
     # Graphique
-    # ----------------------------------------------------------------------
+    
     p <- ggplot(df, aes(x = date_label, y = profondeur)) +
         geom_col(fill = "grey30") +
         labs(title = titre,
              x = "",
              y = "") +
-        theme_minimal(base_size = 12) +
+        theme_bw(base_size = 12) +
         theme(
             axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
             plot.title = element_text(face = "bold")
@@ -1234,7 +1237,7 @@ if (use_station) {
 #' Les dates sont affichées au format \%d/\%m/\%y, ordonnées chronologiquement,
 #' et pivoteées de 90° pour faciliter la lecture.
 #'
-#' @param yaml_config Chemin vers le fichier YAML contenant les informations de
+#' @param yaml_path Chemin vers le fichier YAML contenant les informations de
 #'   connexion PostgreSQL.
 #' @param code_station \[`character(1)`\]\  
 #'   Code Sandre de la station. Si renseigné conjointement avec
@@ -1263,7 +1266,7 @@ if (use_station) {
 #' @examples
 #' \dontrun{
 #'plot_surface_pechee_histogram(
-#'  yaml_config = "C:/workspace/gwilenalim/yaml/config.yml",
+#'  yaml_path = "C:/workspace/gwilenalim/yaml/config.yml",
 #'  code_station = "04216050",
 #'  annee_debut  = 2000,
 #'  annee_fin    = 2025
@@ -1272,7 +1275,7 @@ if (use_station) {
 #'
 #' @export
 plot_surface_pechee_histogram <- function(
-    yaml_config,
+    yaml_path,
     code_station = NULL,
     code_point_prelevement_aspe = NULL,
     annee_debut = 1950,
@@ -1285,9 +1288,9 @@ plot_surface_pechee_histogram <- function(
     library(ggplot2)
     library(lubridate)
 
-    # ----------------------------------------------------------------------
+    
     # Gestion des paramètres code_station / code_point_prelevement_aspe
-    # ----------------------------------------------------------------------
+    
 
     if (!is.null(code_station) & !is.null(code_point_prelevement_aspe)) {
         warning("Les deux paramètres code_station et code_point_prelevement_aspe sont fournis. 
@@ -1297,15 +1300,15 @@ plot_surface_pechee_histogram <- function(
     # Choix du filtre
     use_station <- !is.null(code_station)
 
-    # ----------------------------------------------------------------------
+    
     # Connexion PG depuis YAML
-    # ----------------------------------------------------------------------
-     con <- connect_pg(yaml_config)
+    
+     con <- connect_pg(yaml_path)
     on.exit(DBI::dbDisconnect(con))
 
-    # ----------------------------------------------------------------------
+    
     # Construction de la requête SQL
-    # ----------------------------------------------------------------------
+    
 
 if (use_station) {
     # → On filtre via aspe_stations puis on rejoint les opérations
@@ -1347,9 +1350,9 @@ if (use_station) {
         return(NULL)
     }
 
-    # ----------------------------------------------------------------------
+    
     # Sélection des n dernières opérations à date unique
-    # ----------------------------------------------------------------------
+    
     df <- df %>%
         distinct(date_op, .keep_all = TRUE) %>%
         arrange(desc(date_op)) %>%
@@ -1360,15 +1363,15 @@ if (use_station) {
     df$date_label <- format(df$date_op, "%d/%m/%y")
     df$date_label <- factor(df$date_label, levels = df$date_label)
 
-    # ----------------------------------------------------------------------
+    
     # Graphique
-    # ----------------------------------------------------------------------
+    
     p <- ggplot(df, aes(x = date_label, y = surface_calculee)) +
         geom_col(fill = "grey30") +
         labs(title = titre,
              x = "",
              y = "") +
-        theme_minimal(base_size = 12) +
+        theme_bw(base_size = 12) +
         theme(
             axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
             plot.title = element_text(face = "bold")
@@ -1398,7 +1401,7 @@ if (use_station) {
 #' Les dates sont affichées au format \%d/\%m/\%y, ordonnées chronologiquement,
 #' et pivoteées de 90° pour faciliter la lecture.
 #'
-#' @param yaml_config Chemin vers le fichier YAML contenant les informations de
+#' @param yaml_path Chemin vers le fichier YAML contenant les informations de
 #'   connexion PostgreSQL.
 #' @param code_station \[`character(1)`\]\  
 #'   Code Sandre de la station. Si renseigné conjointement avec
@@ -1427,7 +1430,7 @@ if (use_station) {
 #' @examples
 #' \dontrun{
 #'plot_longueur_pechee_histogram(
-#'  yaml_config = "C:/workspace/gwilenalim/yaml/config.yml",
+#'  yaml_path = "C:/workspace/gwilenalim/yaml/config.yml",
 #'  code_station = "04216050",
 #'  annee_debut  = 2000,
 #'  annee_fin    = 2025
@@ -1436,7 +1439,7 @@ if (use_station) {
 #'
 #' @export
 plot_longueur_pechee_histogram <- function(
-    yaml_config,
+    yaml_path,
     code_station = NULL,
     code_point_prelevement_aspe = NULL,
     annee_debut = 1950,
@@ -1449,9 +1452,9 @@ plot_longueur_pechee_histogram <- function(
     library(ggplot2)
     library(lubridate)
 
-    # ----------------------------------------------------------------------
+    
     # Gestion des paramètres code_station / code_point_prelevement_aspe
-    # ----------------------------------------------------------------------
+    
 
     if (!is.null(code_station) & !is.null(code_point_prelevement_aspe)) {
         warning("Les deux paramètres code_station et code_point_prelevement_aspe sont fournis. 
@@ -1461,15 +1464,15 @@ plot_longueur_pechee_histogram <- function(
     # Choix du filtre
     use_station <- !is.null(code_station)
 
-    # ----------------------------------------------------------------------
+    
     # Connexion PG depuis YAML
-    # ----------------------------------------------------------------------
-     con <- connect_pg(yaml_config)
+    
+     con <- connect_pg(yaml_path)
     on.exit(DBI::dbDisconnect(con))
 
-    # ----------------------------------------------------------------------
+    
     # Construction de la requête SQL
-    # ----------------------------------------------------------------------
+    
 
 if (use_station) {
     # → On filtre via aspe_stations puis on rejoint les opérations
@@ -1511,9 +1514,9 @@ if (use_station) {
         return(NULL)
     }
 
-    # ----------------------------------------------------------------------
+    
     # Sélection des n dernières opérations à date unique
-    # ----------------------------------------------------------------------
+    
     df <- df %>%
         distinct(date_op, .keep_all = TRUE) %>%
         arrange(desc(date_op)) %>%
@@ -1524,15 +1527,15 @@ if (use_station) {
     df$date_label <- format(df$date_op, "%d/%m/%y")
     df$date_label <- factor(df$date_label, levels = df$date_label)
 
-    # ----------------------------------------------------------------------
+    
     # Graphique
-    # ----------------------------------------------------------------------
+    
     p <- ggplot(df, aes(x = date_label, y = longueur)) +
         geom_col(fill = "grey30") +
         labs(title = titre,
              x = "",
              y = "") +
-        theme_minimal(base_size = 12) +
+        theme_bw(base_size = 12) +
         theme(
             axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
             plot.title = element_text(face = "bold")
@@ -1563,7 +1566,7 @@ if (use_station) {
 #' Les dates sont affichées au format \%d/\%m/\%y, ordonnées chronologiquement,
 #' et pivoteées de 90° pour faciliter la lecture.
 #'
-#' @param yaml_config Chemin vers le fichier YAML contenant les informations de
+#' @param yaml_path Chemin vers le fichier YAML contenant les informations de
 #'   connexion PostgreSQL.
 #' @param code_station \[`character(1)`\]\  
 #'   Code Sandre de la station. Si renseigné conjointement avec
@@ -1592,7 +1595,7 @@ if (use_station) {
 #' @examples
 #' \dontrun{
 #'plot_largeur_lame_eau_pechee_histogram(
-#'  yaml_config = "C:/workspace/gwilenalim/yaml/config.yml",
+#'  yaml_path = "C:/workspace/gwilenalim/yaml/config.yml",
 #'  code_station = "04216050",
 #'  annee_debut  = 2000,
 #'  annee_fin    = 2025
@@ -1601,7 +1604,7 @@ if (use_station) {
 #'
 #' @export
 plot_largeur_lame_eau_pechee_histogram <- function(
-    yaml_config,
+    yaml_path,
     code_station = NULL,
     code_point_prelevement_aspe = NULL,
     annee_debut = 1950,
@@ -1614,9 +1617,9 @@ plot_largeur_lame_eau_pechee_histogram <- function(
     library(ggplot2)
     library(lubridate)
 
-    # ----------------------------------------------------------------------
+    
     # Gestion des paramètres code_station / code_point_prelevement_aspe
-    # ----------------------------------------------------------------------
+    
 
     if (!is.null(code_station) & !is.null(code_point_prelevement_aspe)) {
         warning("Les deux paramètres code_station et code_point_prelevement_aspe sont fournis. 
@@ -1626,15 +1629,15 @@ plot_largeur_lame_eau_pechee_histogram <- function(
     # Choix du filtre
     use_station <- !is.null(code_station)
 
-    # ----------------------------------------------------------------------
+    
     # Connexion PG depuis YAML
-    # ----------------------------------------------------------------------
-     con <- connect_pg(yaml_config)
+    
+     con <- connect_pg(yaml_path)
     on.exit(DBI::dbDisconnect(con))
 
-    # ----------------------------------------------------------------------
+    
     # Construction de la requête SQL
-    # ----------------------------------------------------------------------
+    
 
 if (use_station) {
     # → On filtre via aspe_stations puis on rejoint les opérations
@@ -1676,9 +1679,9 @@ if (use_station) {
         return(NULL)
     }
 
-    # ----------------------------------------------------------------------
+    
     # Sélection des n dernières opérations à date unique
-    # ----------------------------------------------------------------------
+    
     df <- df %>%
         distinct(date_op, .keep_all = TRUE) %>%
         arrange(desc(date_op)) %>%
@@ -1689,15 +1692,15 @@ if (use_station) {
     df$date_label <- format(df$date_op, "%d/%m/%y")
     df$date_label <- factor(df$date_label, levels = df$date_label)
 
-    # ----------------------------------------------------------------------
+    
     # Graphique
-    # ----------------------------------------------------------------------
+    
     p <- ggplot(df, aes(x = date_label, y = largeur_lame_eau)) +
         geom_col(fill = "grey30") +
         labs(title = titre,
              x = "",
              y = "") +
-        theme_minimal(base_size = 12) +
+        theme_bw(base_size = 12) +
         theme(
             axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
             plot.title = element_text(face = "bold")
@@ -1727,7 +1730,7 @@ if (use_station) {
 #' Les dates sont affichées au format \%d/\%m/\%y, ordonnées chronologiquement,
 #' et pivoteées de 90° pour faciliter la lecture.
 #'
-#' @param yaml_config Chemin vers le fichier YAML contenant les informations de
+#' @param yaml_path Chemin vers le fichier YAML contenant les informations de
 #'   connexion PostgreSQL.
 #' @param code_station \[`character(1)`\]\  
 #'   Code Sandre de la station. Si renseigné conjointement avec
@@ -1756,7 +1759,7 @@ if (use_station) {
 #' @examples
 #' \dontrun{
 #'plot_temperature_instantanee_pechee_histogram(
-#'  yaml_config = "C:/workspace/gwilenalim/yaml/config.yml",
+#'  yaml_path = "C:/workspace/gwilenalim/yaml/config.yml",
 #'  code_station = "04216050",
 #'  annee_debut  = 2000,
 #'  annee_fin    = 2025
@@ -1765,7 +1768,7 @@ if (use_station) {
 #'
 #' @export
 plot_temperature_instantanee_pechee_histogram <- function(
-    yaml_config,
+    yaml_path,
     code_station = NULL,
     code_point_prelevement_aspe = NULL,
     annee_debut = 1950,
@@ -1778,9 +1781,9 @@ plot_temperature_instantanee_pechee_histogram <- function(
     library(ggplot2)
     library(lubridate)
 
-    # ----------------------------------------------------------------------
+    
     # Gestion des paramètres code_station / code_point_prelevement_aspe
-    # ----------------------------------------------------------------------
+    
 
     if (!is.null(code_station) & !is.null(code_point_prelevement_aspe)) {
         warning("Les deux paramètres code_station et code_point_prelevement_aspe sont fournis. 
@@ -1790,15 +1793,15 @@ plot_temperature_instantanee_pechee_histogram <- function(
     # Choix du filtre
     use_station <- !is.null(code_station)
 
-    # ----------------------------------------------------------------------
+    
     # Connexion PG depuis YAML
-    # ----------------------------------------------------------------------
-     con <- connect_pg(yaml_config)
+    
+     con <- connect_pg(yaml_path)
     on.exit(DBI::dbDisconnect(con))
 
-    # ----------------------------------------------------------------------
+    
     # Construction de la requête SQL
-    # ----------------------------------------------------------------------
+    
 
 if (use_station) {
     # → On filtre via aspe_stations puis on rejoint les opérations
@@ -1840,9 +1843,9 @@ if (use_station) {
         return(NULL)
     }
 
-    # ----------------------------------------------------------------------
+    
     # Sélection des n dernières opérations à date unique
-    # ----------------------------------------------------------------------
+    
     df <- df %>%
         distinct(date_op, .keep_all = TRUE) %>%
         arrange(desc(date_op)) %>%
@@ -1853,15 +1856,15 @@ if (use_station) {
     df$date_label <- format(df$date_op, "%d/%m/%y")
     df$date_label <- factor(df$date_label, levels = df$date_label)
 
-    # ----------------------------------------------------------------------
+    
     # Graphique
-    # ----------------------------------------------------------------------
+    
     p <- ggplot(df, aes(x = date_label, y = temperature_instantanee)) +
         geom_col(fill = "grey30") +
         labs(title = titre,
              x = "",
              y = "") +
-        theme_minimal(base_size = 12) +
+        theme_bw(base_size = 12) +
         theme(
             axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
             plot.title = element_text(face = "bold")
@@ -1892,7 +1895,7 @@ if (use_station) {
 #' Les dates sont affichées au format \%d/\%m/\%y, ordonnées chronologiquement,
 #' et pivoteées de 90° pour faciliter la lecture.
 #'
-#' @param yaml_config Chemin vers le fichier YAML contenant les informations de
+#' @param yaml_path Chemin vers le fichier YAML contenant les informations de
 #'   connexion PostgreSQL.
 #' @param code_station \[`character(1)`\]\  
 #'   Code Sandre de la station. Si renseigné conjointement avec
@@ -1921,7 +1924,7 @@ if (use_station) {
 #' @examples
 #' \dontrun{
 #'plot_puissance_pechee_histogram(
-#'  yaml_config = "C:/workspace/gwilenalim/yaml/config.yml",
+#'  yaml_path = "C:/workspace/gwilenalim/yaml/config.yml",
 #'  code_station = "04216050",
 #'  annee_debut  = 2000,
 #'  annee_fin    = 2025
@@ -1930,7 +1933,7 @@ if (use_station) {
 #'
 #' @export
 plot_puissance_pechee_histogram <- function(
-    yaml_config,
+    yaml_path,
     code_station = NULL,
     code_point_prelevement_aspe = NULL,
     annee_debut = 1950,
@@ -1943,9 +1946,9 @@ plot_puissance_pechee_histogram <- function(
     library(ggplot2)
     library(lubridate)
 
-    # ----------------------------------------------------------------------
+    
     # Gestion des paramètres code_station / code_point_prelevement_aspe
-    # ----------------------------------------------------------------------
+    
 
     if (!is.null(code_station) & !is.null(code_point_prelevement_aspe)) {
         warning("Les deux paramètres code_station et code_point_prelevement_aspe sont fournis. 
@@ -1955,15 +1958,15 @@ plot_puissance_pechee_histogram <- function(
     # Choix du filtre
     use_station <- !is.null(code_station)
 
-    # ----------------------------------------------------------------------
+    
     # Connexion PG depuis YAML
-    # ----------------------------------------------------------------------
-     con <- connect_pg(yaml_config)
+    
+     con <- connect_pg(yaml_path)
     on.exit(DBI::dbDisconnect(con))
 
-    # ----------------------------------------------------------------------
+    
     # Construction de la requête SQL
-    # ----------------------------------------------------------------------
+    
 
 if (use_station) {
     # → On filtre via aspe_stations puis on rejoint les opérations
@@ -2005,9 +2008,9 @@ if (use_station) {
         return(NULL)
     }
 
-    # ----------------------------------------------------------------------
+    
     # Sélection des n dernières opérations à date unique
-    # ----------------------------------------------------------------------
+    
     df <- df %>%
         distinct(date_op, .keep_all = TRUE) %>%
         arrange(desc(date_op)) %>%
@@ -2018,15 +2021,15 @@ if (use_station) {
     df$date_label <- format(df$date_op, "%d/%m/%y")
     df$date_label <- factor(df$date_label, levels = df$date_label)
 
-    # ----------------------------------------------------------------------
+    
     # Graphique
-    # ----------------------------------------------------------------------
+    
     p <- ggplot(df, aes(x = date_label, y = puissance)) +
         geom_col(fill = "grey30") +
         labs(title = titre,
              x = "",
              y = "") +
-        theme_minimal(base_size = 12) +
+        theme_bw(base_size = 12) +
         theme(
             axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
             plot.title = element_text(face = "bold")
@@ -2058,7 +2061,7 @@ if (use_station) {
 #' Les dates sont affichées au format \%d/\%m/\%y, ordonnées chronologiquement,
 #' et pivoteées de 90° pour faciliter la lecture.
 #'
-#' @param yaml_config Chemin vers le fichier YAML contenant les informations de
+#' @param yaml_path Chemin vers le fichier YAML contenant les informations de
 #'   connexion PostgreSQL.
 #' @param code_station \[`character(1)`\]\  
 #'   Code Sandre de la station. Si renseigné conjointement avec
@@ -2087,7 +2090,7 @@ if (use_station) {
 #' @examples
 #' \dontrun{
 #'plot_conductivite_pechee_histogram(
-#'  yaml_config = "C:/workspace/gwilenalim/yaml/config.yml",
+#'  yaml_path = "C:/workspace/gwilenalim/yaml/config.yml",
 #'  code_station = "04216050",
 #'  annee_debut  = 2000,
 #'  annee_fin    = 2025
@@ -2096,7 +2099,7 @@ if (use_station) {
 #'
 #' @export
 plot_conductivite_pechee_histogram <- function(
-    yaml_config,
+    yaml_path,
     code_station = NULL,
     code_point_prelevement_aspe = NULL,
     annee_debut = 1950,
@@ -2109,9 +2112,9 @@ plot_conductivite_pechee_histogram <- function(
     library(ggplot2)
     library(lubridate)
 
-    # ----------------------------------------------------------------------
+    
     # Gestion des paramètres code_station / code_point_prelevement_aspe
-    # ----------------------------------------------------------------------
+    
 
     if (!is.null(code_station) & !is.null(code_point_prelevement_aspe)) {
         warning("Les deux paramètres code_station et code_point_prelevement_aspe sont fournis. 
@@ -2121,15 +2124,15 @@ plot_conductivite_pechee_histogram <- function(
     # Choix du filtre
     use_station <- !is.null(code_station)
 
-    # ----------------------------------------------------------------------
+    
     # Connexion PG depuis YAML
-    # ----------------------------------------------------------------------
-     con <- connect_pg(yaml_config)
+    
+     con <- connect_pg(yaml_path)
     on.exit(DBI::dbDisconnect(con))
 
-    # ----------------------------------------------------------------------
+    
     # Construction de la requête SQL
-    # ----------------------------------------------------------------------
+    
 
 if (use_station) {
     # → On filtre via aspe_stations puis on rejoint les opérations
@@ -2171,9 +2174,9 @@ if (use_station) {
         return(NULL)
     }
 
-    # ----------------------------------------------------------------------
+    
     # Sélection des n dernières opérations à date unique
-    # ----------------------------------------------------------------------
+    
     df <- df %>%
         distinct(date_op, .keep_all = TRUE) %>%
         arrange(desc(date_op)) %>%
@@ -2184,15 +2187,15 @@ if (use_station) {
     df$date_label <- format(df$date_op, "%d/%m/%y")
     df$date_label <- factor(df$date_label, levels = df$date_label)
 
-    # ----------------------------------------------------------------------
+    
     # Graphique
-    # ----------------------------------------------------------------------
+    
     p <- ggplot(df, aes(x = date_label, y = conductivite)) +
         geom_col(fill = "grey30") +
         labs(title = titre,
              x = "",
              y = "") +
-        theme_minimal(base_size = 12) +
+        theme_bw(base_size = 12) +
         theme(
             axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
             plot.title = element_text(face = "bold")
@@ -2208,11 +2211,10 @@ if (use_station) {
 ```{r function}
 #' Planche synthèse habitats pêches électriques (faciès, profondeur, ...)
 #'
-#' @param yaml_config Chemin du YAML de connexion
+#' @param yaml_path Chemin du YAML de connexion
 #' @param station Code Sandre
 #' @param annee_debut Année de début (défaut 1950)
 #' @param annee_fin Année de fin (défaut = année courante)
-#' @param indicateurs Vecteur d'indicateurs pour les métriques
 #' @param schema Schéma SQL (défaut "qe")
 #' @param titre Titre principal (défaut: "<station> — Synthèse habitats")
 #' @param sous_titre Sous-titre (défaut: "synthèse générée le <date> par Eaux & Vilaine")
@@ -2226,16 +2228,14 @@ if (use_station) {
 #'
 #' @examples
 #' \dontrun{
-#' make_ipr_planche(".../config.yml", "04216050", annee_debut = 2000, n_last = 12)
+#' make_habitats_peche_planche(".../config.yml", "04216050", annee_debut = 2000, n_last = 12)
 #' }
 #' @export
-#' @noRd  
 make_habitats_peche_planche <- function(
-  yaml_config,
+  yaml_path,
   station,
   annee_debut = 1950,
   annee_fin   = as.numeric(format(Sys.Date(), "%Y")),
-  indicateurs = c("DII","DIO","DIT","DTI","NEL","NER","NTE"),
   schema     = "qe",
   titre      = NULL,
   sous_titre = NULL,
@@ -2245,24 +2245,48 @@ make_habitats_peche_planche <- function(
   dpi        = 300,
   n_last     = 12
 ){
-  if (is.null(titre))      titre      <- glue::glue("{station} — Synthèse IPR")
-  if (is.null(sous_titre)) sous_titre <- glue::glue("synthèse générée le {format(Sys.Date(), '%d/%m/%Y') par Eaux & Vilaine}")
+  if (is.null(titre))      titre      <- glue::glue("{station} — Synthèse habitats")
+  if (is.null(sous_titre)) sous_titre <- glue::glue("Synthèse réalisée le {format(Sys.Date(), '%d/%m/%Y')} par Eaux & Vilaine")
+  
+  graph_habitats <- plot_habitat_heatmap(
+  yaml_path    = yaml_path,
+  code_station = station,
+  annee_debut  = annee_debut,
+  annee_fin    = annee_fin,
+  n_last = n_last,
+  titre = "Habitats et caractéristiques station",
+  sous_titre =""
+  )
+  
+  graph_facies <- plot_facies_importance(yaml_path, 
+                                         code_station=station, 
+                                         annee_debut=annee_debut, 
+                                         annee_fin=annee_fin, 
+                                         n_last = n_last)
+  
+  graph_profond <- plot_profondeur_histogram(yaml_path, 
+                                             code_station=station, 
+                                         annee_debut=annee_debut, 
+                                         annee_fin=annee_fin, 
+                                         n_last = n_last)
+  
+    graph_surface <- plot_surface_pechee_histogram(yaml_path, 
+                                             code_station=station, 
+                                         annee_debut=annee_debut, 
+                                         annee_fin=annee_fin, 
+                                         n_last = n_last)
 
-  graph_ipr <- plot_ipr_histogram(yaml_config, station, annee_debut, annee_fin, schema, n_last = n_last)
-  graph_eff <- plot_effectifs_histogram(yaml_config, station, annee_debut, annee_fin, schema, only_with_ipr = TRUE, n_last = n_last)
-  graph_met <- plot_ipr_metrics(yaml_config, station, indicateurs, annee_debut, annee_fin, schema, table = "aspe_ipr",
-                                n_lignes_facets = 2, n_last = n_last)
-
-  if (is.null(graph_ipr) && is.null(graph_eff) && is.null(graph_met)) return(NULL)
+  if (is.null(graph_habitats) && is.null(graph_facies) && 
+      is.null(graph_profond) && is.null(graph_surface)) return(NULL)
 
   title_gg <- ggplot2::ggplot() +
     ggplot2::labs(title = titre, subtitle = sous_titre) +
     ggplot2::theme_void() +
     ggplot2::theme(plot.title = ggplot2::element_text(size = 16, face = "bold", hjust = 0.5),
                    plot.subtitle = ggplot2::element_text(size = 11, hjust = 0.5))
-  block_top    <- cowplot::get_title(title_gg)
-  block_middle <- cowplot::plot_grid(graph_ipr, graph_eff, nrow = 1, rel_widths = c(3, 2))
-  planche      <- cowplot::plot_grid(block_top, block_middle, graph_met, nrow = 3, rel_heights = c(0.20, 1, 2))
+  block_droit <- cowplot::plot_grid(graph_facies, graph_profond, graph_surface, nrow = 3)
+  block_graphs <- cowplot::plot_grid(graph_habitats, block_droit, nrow = 1, rel_widths = c(3, 1))
+  planche      <- cowplot::plot_grid(title_gg, block_graphs, nrow = 2, rel_heights = c(0.4, 3))
 
   if (!is.null(file_out)) {
     cowplot::save_plot(filename = file_out, plot = planche, base_width = width, base_height = height, dpi = dpi, bg = "white")
@@ -2273,51 +2297,167 @@ make_habitats_peche_planche <- function(
 
 ```
 
-# descriptif opération
-```{r function}
 
-#' Commanditaires & Opérateurs ASPE par date 
-#' Descriptif opération
+# Planche synthèse opération
+```{r function}
+#' Planche synthèse opération pêches électriques (protocole, puissance, ...)
 #'
-#' Interroge la base ASPE via un fichier YAML de connexion et extrait,
-#' pour une station ou un point ASPE, les acteurs :
-#' - `commanditaire_libelle_aspe` (paneau du haut),
-#' - `operateur_libelle_aspe` (paneau du bas).
-#' Puis les modes de pêche
-#' - `protocole_peche` (paneau du haut),
-#' - `moyen_prospection` (paneau du bas),
+#' @param yaml_path Chemin du YAML de connexion
+#' @param station Code Sandre
+#' @param annee_debut Année de début (défaut 1950)
+#' @param annee_fin Année de fin (défaut = année courante)
+#' @param schema Schéma SQL (défaut "qe")
+#' @param titre Titre principal (défaut: "<station> — Synthèse opérations")
+#' @param sous_titre Sous-titre (défaut: "synthèse générée le <date> par Eaux & Vilaine")
+#' @param file_out Chemin de sauvegarde (PNG) si non NULL
+#' @param width Largeur (pouces), défaut A4 paysage
+#' @param height Hauteur (pouces), défaut A4 paysage
+#' @param dpi DPI pour l'export
+#' @param n_last Nombre maximum de campagnes affichées
 #'
-#' L'axe des x représente les dates (facteur ordonné), l'axe des y
-#' les acteurs (une ligne par valeur). Les points indiquent la présence
-#' de l'acteur pour la date donnée. Les couleurs différencient le type
-#' d'acteur (Commanditaire vs Opérateur) et le graphique est facetté
-#' en quatre panneaux empilés partie haute : (haut = Commanditaire ; bas = Opérateur).
-#' partie basse (haut = protocole_peche, bas = moyen_prospection)
-#'
-#' @param titre Titre du graphique (défaut : "Descriptif opération").
-#'
-#' @return Un objet ggplot2 facetté (2 lignes : Commanditaire en haut, Opérateur en bas),
-#' avec en y les acteurs et, pour chaque date en x, un point si l'acteur est présent.
+#' @return Un objet `ggplot` (composé avec `cowplot`)
 #'
 #' @examples
 #' \dontrun{
-#' graph_descriptif_operation(
-#'   yaml_config = "config/connexion.yml",
-#'   code_station = "04216000",
-#'   annee_debut = 2000,
-#'   n_last = 12
-#' )
+#' make_operations_peche_planche(".../config.yml", "04216050", annee_debut = 2000, n_last = 12)
 #' }
 #' @export
+make_operations_peche_planche <- function(
+  yaml_path,
+  station,
+  annee_debut = 1950,
+  annee_fin   = as.numeric(format(Sys.Date(), "%Y")),
+  schema     = "qe",
+  titre      = NULL,
+  sous_titre = NULL,
+  file_out   = NULL,
+  width      = 29.7 / 2.54,
+  height     = 21 / 2.54,
+  dpi        = 300,
+  n_last     = 12
+){
+  if (is.null(titre))      titre      <- glue::glue("{station} — Synthèse opérations de pêche")
+  if (is.null(sous_titre)) sous_titre <- glue::glue("Synthèse réalisée le {format(Sys.Date(), '%d/%m/%Y')} par Eaux & Vilaine")
+  
+  graph_operations <- graph_descriptif_operation(
+  yaml_path    = yaml_path,
+  code_station = station,
+  annee_debut  = annee_debut,
+  annee_fin    = annee_fin,
+  n_last = n_last
+  )
+  
+  graph_long_station <- plot_longueur_pechee_histogram(yaml_path, 
+                                         code_station=station, 
+                                         annee_debut=annee_debut, 
+                                         annee_fin=annee_fin, 
+                                         n_last = n_last)
+  
+    graph_largeur_station <- plot_largeur_lame_eau_pechee_histogram(yaml_path, 
+                                         code_station=station, 
+                                         annee_debut=annee_debut, 
+                                         annee_fin=annee_fin, 
+                                         n_last = n_last)
+  
+  graph_profond <- plot_profondeur_histogram(yaml_path, 
+                                             code_station=station, 
+                                         annee_debut=annee_debut, 
+                                         annee_fin=annee_fin, 
+                                         n_last = n_last)
+  
+    graph_conductivite <- plot_conductivite_pechee_histogram(yaml_path, 
+                                             code_station=station, 
+                                         annee_debut=annee_debut, 
+                                         annee_fin=annee_fin, 
+                                         n_last = n_last)
+    
+    graph_temperature <- plot_temperature_instantanee_pechee_histogram(yaml_path, 
+                                             code_station=station, 
+                                         annee_debut=annee_debut, 
+                                         annee_fin=annee_fin, 
+                                         n_last = n_last)
+    
+
+    graph_puissance<-plot_puissance_pechee_histogram(yaml_path, 
+                                             code_station=station, 
+                                         annee_debut=annee_debut, 
+                                         annee_fin=annee_fin, 
+                                         n_last = n_last)
+    
+    
+  if (is.null(graph_puissance) && is.null(graph_temperature) && 
+      is.null(graph_conductivite) && is.null(graph_profond) &&
+      is.null(graph_largeur_station) && is.null(graph_long_station) &&
+      is.null(graph_operations)) return(NULL)
+
+  title_gg <- ggplot2::ggplot() +
+    ggplot2::labs(title = titre, subtitle = sous_titre) +
+    ggplot2::theme_void() +
+    ggplot2::theme(plot.title = ggplot2::element_text(size = 16, face = "bold", hjust = 0.5),
+                   plot.subtitle = ggplot2::element_text(size = 11, hjust = 0.5))
+  block_droit <- cowplot::plot_grid(graph_long_station, 
+                                    graph_largeur_station,
+                                    graph_profond, 
+                                    graph_conductivite,
+                                    graph_temperature,
+                                    graph_puissance, 
+                                    nrow = 3)
+  block_graphs <- cowplot::plot_grid(graph_operations, block_droit, nrow = 1, rel_widths = c(2.5, 1))
+  planche      <- cowplot::plot_grid(title_gg, block_graphs, nrow = 2, rel_heights = c(0.4, 3))
+
+  if (!is.null(file_out)) {
+    cowplot::save_plot(filename = file_out, plot = planche, base_width = width, base_height = height, dpi = dpi, bg = "white")
+  }
+  planche
+}
+
+
+```
+
+
+# descriptif opération
+```{r function}
+
+#' Commanditaires & Opérateurs ASPE par date
+#' Descriptif opération
+#'
+#' Interroge la base ASPE via un fichier YAML de connexion et extrait,
+#' pour une station ou un point ASPE :
+#' - Acteurs (panneaux du haut) :
+#'   * `commanditaire_libelle_aspe` (panneau "Commanditaire"),
+#'   * `operateur_libelle_aspe`     (panneau "Opérateur").
+#' - Modes de pêche (panneaux suivants) :
+#'   * `protocole_peche`   (panneau "Protocole"),
+#'   * `moyen_prospection` (panneau "Prospection").
+#' - Comptages (panneau regroupé en bas) :
+#'   * `nombre_anodes` + `nombre_epuisettes` (panneau "Matériel").
+#'
+#' L'axe des x représente les dates (facteur ordonné, dernières dates).
+#' Pour Commanditaire/Opérateur/Protocole/Prospection : l'axe y liste les valeurs (un point par présence).
+#' Pour Matériel : deux niveaux en y ("Anodes", "Epuisettes"), la valeur (agrégée par date) est inscrite dans le point.
+#'
+#' @param yaml_path Chemin du YAML de connexion.
+#' @param code_station Code station ASPE (prioritaire si fourni avec code_point_prelevement_aspe).
+#' @param code_point_prelevement_aspe Code point ASPE.
+#' @param annee_debut Année de début de sélection (défaut 1950).
+#' @param annee_fin Année de fin de sélection (défaut année courante).
+#' @param n_last Nombre de dernières dates distinctes à afficher (défaut 10).
+#' @param titre Titre du graphique (défaut : "Descriptif opération").
+#' @param normalize_accents Si TRUE, déaccentue les textes (fusionne "À pied"/"A pied").
+#'
+#' @return Un objet ggplot2 facetté (5 panneaux : Commanditaire, Opérateur,
+#'         Protocole, Prospection, Matériel).
+#'
+#' @export
 graph_descriptif_operation <- function(
-  yaml_config,
+  yaml_path,
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
   annee_debut = 1950,
   annee_fin = as.integer(format(Sys.Date(), "%Y")),
   n_last = 10,
   titre = "Descriptif opération",
-  normalize_accents = TRUE   # option pour fusionner "A pied" et "À pied"
+  normalize_accents = TRUE
 ){
   library(DBI)
   library(dplyr)
@@ -2330,10 +2470,10 @@ graph_descriptif_operation <- function(
   }
   use_station <- !is.null(code_station)
 
-  con <- connect_pg(yaml_config)
+  con <- connect_pg(yaml_path)
   on.exit(DBI::dbDisconnect(con))
 
-  # --- Requête SQL : on récupère les 4 champs utiles + date ---
+  # --- Requête SQL ---
   if (use_station) {
     sql <- glue::glue("
       SELECT
@@ -2342,7 +2482,9 @@ graph_descriptif_operation <- function(
         o.commanditaire_libelle_aspe,
         o.operateur_libelle_aspe,
         o.protocole_peche,
-        o.moyen_prospection
+        o.moyen_prospection,
+        o.nombre_anodes,
+        o.nombre_epuisettes
       FROM qe.aspe_operations o
       LEFT JOIN qe.aspe_stations s
         ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
@@ -2359,7 +2501,9 @@ graph_descriptif_operation <- function(
         o.commanditaire_libelle_aspe,
         o.operateur_libelle_aspe,
         o.protocole_peche,
-        o.moyen_prospection
+        o.moyen_prospection,
+        o.nombre_anodes,
+        o.nombre_epuisettes
       FROM qe.aspe_operations o
       LEFT JOIN qe.aspe_stations s
         ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
@@ -2371,12 +2515,9 @@ graph_descriptif_operation <- function(
   }
 
   df <- DBI::dbGetQuery(con, sql)
-  if (nrow(df) == 0) {
-    message("Aucune donnée disponible.")
-    return(NULL)
-  }
+  if (nrow(df) == 0) return(NULL)
 
-  # --- Normalisation des champs libellés (trim, squish, NA si vide) ---
+  # --- Nettoyage des libellés ---
   df <- df %>%
     mutate(
       commanditaire_libelle_aspe = na_if(str_squish(trimws(commanditaire_libelle_aspe)), ""),
@@ -2385,12 +2526,8 @@ graph_descriptif_operation <- function(
       moyen_prospection          = na_if(str_squish(trimws(moyen_prospection)), "")
     )
 
-  # Optionnel : déaccentuer pour fusionner "À pied" / "A pied"
   if (isTRUE(normalize_accents)) {
-    # nécessite stringi (présent en général)
-    if (!requireNamespace("stringi", quietly = TRUE)) {
-      warning("Le package 'stringi' n'est pas disponible : normalize_accents ignoré.")
-    } else {
+    if (requireNamespace("stringi", quietly = TRUE)) {
       df <- df %>%
         mutate(
           protocole_peche   = stringi::stri_trans_general(protocole_peche, "Latin-ASCII"),
@@ -2406,83 +2543,131 @@ graph_descriptif_operation <- function(
     slice(1:n_last) %>%
     arrange(date_op)
 
-  # --- Construire les 4 ensembles ---
-  cmd <- df %>%
-    semi_join(last_dates, by = "date_op") %>%
-    transmute(date_op, type = "Commanditaire", acteur = commanditaire_libelle_aspe) %>%
-    filter(!is.na(acteur)) %>%
-    distinct()
+  # --- Qualitatifs dans facettes dédiées ---
+  cmd <- df %>% semi_join(last_dates, by="date_op") %>%
+    transmute(date_op, type="Commanditaire",
+              acteur=commanditaire_libelle_aspe, valeur=NA_real_) %>%
+    filter(!is.na(acteur)) %>% distinct()
 
-  op <- df %>%
-    semi_join(last_dates, by = "date_op") %>%
-    transmute(date_op, type = "Opérateur", acteur = operateur_libelle_aspe) %>%
-    filter(!is.na(acteur)) %>%
-    distinct()
+  oper <- df %>% semi_join(last_dates, by="date_op") %>%
+    transmute(date_op, type="Opérateur",
+              acteur=operateur_libelle_aspe, valeur=NA_real_) %>%
+    filter(!is.na(acteur)) %>% distinct()
 
-  protocole <- df %>%
-    semi_join(last_dates, by = "date_op") %>%
-    transmute(date_op, type = "Protocole", acteur = protocole_peche) %>%
-    filter(!is.na(acteur)) %>%
-    distinct()
+  # --- Qualitatifs dans la facette Protocole ---
+  protocole <- df %>% semi_join(last_dates, by="date_op") %>%
+    transmute(date_op, type="Protocole",
+              acteur=protocole_peche, valeur=NA_real_) %>%
+    filter(!is.na(acteur)) %>% distinct()
 
-  prospection <- df %>%
-    semi_join(last_dates, by = "date_op") %>%
-    transmute(date_op, type = "Prospection", acteur = moyen_prospection) %>%
-    filter(!is.na(acteur)) %>%
-    distinct()
+  prospection <- df %>% semi_join(last_dates, by="date_op") %>%
+    transmute(date_op, type="Prospection",
+              acteur=moyen_prospection, valeur=NA_real_) %>%
+    filter(!is.na(acteur)) %>% distinct()
 
-  # --- Fusion en long ---
-  df_long <- bind_rows(cmd, op, protocole, prospection)
+  # --- Quantitatifs dans Protocole (agrégation = moyenne) ---
+  anodes <- df %>% semi_join(last_dates, by="date_op") %>%
+    transmute(date_op, type="Anodes", acteur="Anodes",
+              valeur=as.numeric(nombre_anodes)) %>%
+    group_by(date_op, type, acteur) %>%
+    summarise(valeur=if(all(is.na(valeur))) NA_real_ else mean(valeur, na.rm=TRUE),
+              .groups="drop") %>%
+    filter(!is.na(valeur))
 
-if (nrow(df_long) == 0) {
-  message("Aucun commanditaire, opérateur, protocole ou prospection pour les dernières dates.")
-  return(NULL)
-}
+  epuisettes <- df %>% semi_join(last_dates, by="date_op") %>%
+    transmute(date_op, type="Epuisettes", acteur="Epuisettes",
+              valeur=as.numeric(nombre_epuisettes)) %>%
+    group_by(date_op, type, acteur) %>%
+    summarise(valeur=if(all(is.na(valeur))) NA_real_ else mean(valeur, na.rm=TRUE),
+              .groups="drop") %>%
+    filter(!is.na(valeur))
 
-# Facteur type
-df_long$type <- factor(
-  df_long$type,
-  levels = c("Commanditaire", "Opérateur", "Protocole", "Prospection")
-)
+  # --- Fusion ---
+  df_long <- bind_rows(cmd, oper, protocole, prospection, anodes, epuisettes)
 
-# Facteur dates
-df_long$date_label <- format(df_long$date_op, "%d/%m/%y")
-df_long$date_label <- factor(df_long$date_label, 
-                             levels = rev(unique(df_long$date_label)))
+  if (nrow(df_long) == 0) return(NULL)
 
-# --- Couleurs par type ---
-  cols_type <- c(
-    "Commanditaire" = "#1f78b4",
-    "Opérateur"     = "#e31a1c",
-    "Protocole"     = "grey40",
-    "Prospection"   = "orange"
+  # --- Nouveau regroupement en facette Protocole ---
+  df_long <- df_long %>%
+    mutate(
+      facet_type = dplyr::recode(
+        type,
+        "Anodes"      = "Protocole",
+        "Epuisettes"  = "Protocole",
+        "Protocole"   = "Protocole",
+        "Prospection" = "Protocole",
+        .default      = type
+      ),
+      color_group = type
+    )
+
+  df_long$facet_type <- factor(
+    df_long$facet_type,
+    levels=c("Commanditaire", "Opérateur", "Protocole")
+  )
+
+  df_long$date_label <- format(df_long$date_op, "%d/%m/%y")
+  df_long$date_label <- factor(df_long$date_label, levels = rev(unique(df_long$date_label)))
+
+  # --- Couleurs ---
+  cols <- c(
+    "Commanditaire"="#1f78b4",
+    "Opérateur"    ="#e31a1c",
+    "Protocole"    ="grey40",
+    "Prospection"  ="orange",
+    "Anodes"       ="#6a3d9a",
+    "Epuisettes"   ="#33a02c"
   )
 
   # --- Graphique ---
-  p <- ggplot(df_long, aes(x = date_label, y = acteur, color = type)) +
-    geom_point(size = 3) +
-    facet_grid(
-      rows   = vars(type),
-      scales = "free_y",
-      space  = "free_y",
-      switch = "y"
+  p <- ggplot() +
+    # Facettes Commanditaire / Opérateur
+    geom_point(
+      data = df_long %>% filter(facet_type %in% c("Commanditaire","Opérateur")),
+      aes(x=date_label, y=acteur, color=color_group),
+      size=3
     ) +
-    scale_color_manual(values = cols_type) +
-    labs(title = titre, x = "", y = "") +
-    theme_minimal(base_size = 12) +
+    # Qualitatifs du panneau Protocole
+    geom_point(
+      data = df_long %>% filter(facet_type=="Protocole" &
+                                type %in% c("Protocole","Prospection")),
+      aes(x=date_label, y=acteur, color=color_group),
+      size=3
+    ) +
+    # Quantitatifs du panneau Protocole
+    geom_point(
+      data = df_long %>% filter(facet_type=="Protocole" &
+                                type %in% c("Anodes","Epuisettes")),
+      aes(x=date_label, y=acteur, color=color_group),
+      shape=21, fill="white", size=6, stroke=1.1
+    ) +
+    geom_text(
+      data = df_long %>% filter(facet_type=="Protocole" &
+                                type %in% c("Anodes","Epuisettes")),
+      aes(x=date_label, y=acteur, label=valeur, color=color_group),
+      fontface="bold", size=3
+    ) +
+    facet_grid(
+      rows=vars(facet_type),
+      scales="free_y",
+      space="free_y",
+      switch="y"
+    ) +
+    scale_color_manual(values=cols) +
+    labs(title=titre, x="", y="") +
+    theme_bw(base_size=12) +
     theme(
-      legend.position     = "none",
-      strip.placement     = "outside",
-      strip.text.y.left   = element_text(face = "bold"),
-      axis.text.x         = element_text(angle = 90, vjust = 0.5, hjust = 1),
-      plot.title          = element_text(face = "bold"),
-      panel.grid.major.y  = element_line(color = "#dddddd"),
-      panel.spacing.y     = unit(10, "pt")
+      legend.position="none",
+      strip.placement="outside",
+      strip.text.y.left=element_text(face="bold"),
+      axis.text.x=element_text(angle=90, vjust=0.5, hjust=1),
+      plot.title=element_text(face="bold"),
+      panel.grid.major.y=element_line(color="#dddddd"),
+      panel.spacing.y=unit(10,"pt")
     )
 
   return(p)
 }
-
 ```
 
 
@@ -2522,7 +2707,7 @@ df_long$date_label <- factor(df_long$date_label,
 #' Les dates (opérations ASPE) sont affichées au format \code{\%d/\%m/\%y},
 #' ordonnées chronologiquement, et pivotées de 90° pour faciliter la lecture.
 #'
-#' @param yaml_config \code{character(1)}  
+#' @param yaml_path \code{character(1)}  
 #' Chemin vers le fichier YAML contenant les informations de connexion PostgreSQL.
 #'
 #' @param code_station \code{character(1)}  
@@ -2560,7 +2745,7 @@ df_long$date_label <- factor(df_long$date_label,
 #' @examples
 #' \dontrun{
 #' plot_facies_profondeur_histogram(
-#'   yaml_config = "config/connexion.yml",
+#'   yaml_path = "config/connexion.yml",
 #'   code_station = "04216000",
 #'   annee_debut = 2010,
 #'   n_last = 12
@@ -2569,7 +2754,7 @@ df_long$date_label <- factor(df_long$date_label,
 #'
 #' @export
 plot_facies_profondeur_histogram <- function(
-  yaml_config,
+  yaml_path,
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
   annee_debut = 1950,
@@ -2583,24 +2768,24 @@ plot_facies_profondeur_histogram <- function(
   library(stringr)
   library(tidyr)
 
-  # ------------------------------------------------------------------
+  
   # Gestion code_station vs point ASPE
-  # ------------------------------------------------------------------
+  
   if (!is.null(code_station) & !is.null(code_point_prelevement_aspe)) {
     warning("Les deux paramètres sont fournis : usage prioritaire de code_station.")
   }
   use_station <- !is.null(code_station)
 
-  # ------------------------------------------------------------------
+  
   # Connexion PG
-  # ------------------------------------------------------------------
-  con <- connect_pg(yaml_config)
+  
+  con <- connect_pg(yaml_path)
   on.exit(dbDisconnect(con))
 
-  # ------------------------------------------------------------------
+  
   # Requête SQL : Récupération des champs facies_profondeur_moyenne 
   # et facies_libelle_type
-  # ------------------------------------------------------------------
+  
   if (use_station) {
     sql <- glue::glue("
       SELECT
@@ -2641,9 +2826,9 @@ plot_facies_profondeur_histogram <- function(
     return(NULL)
   }
 
-  # ------------------------------------------------------------------
+  
   # On ne garde que n_last dates uniques
-  # ------------------------------------------------------------------
+  
   df <- df %>%
     distinct(date_op, .keep_all = TRUE) %>%
     arrange(desc(date_op)) %>%
@@ -2655,9 +2840,9 @@ plot_facies_profondeur_histogram <- function(
 
 df <- df %>%
   mutate(
-    # ---------------------------------------
+   
     # 1) Parsing facies_profondeur_moyenne
-    # ---------------------------------------
+   
     facies_profondeur_moyenne = str_remove(facies_profondeur_moyenne, "^\\\\x"),
     depths_raw = str_split(
       str_replace_all(facies_profondeur_moyenne,
@@ -2666,9 +2851,9 @@ df <- df %>%
     ),
     depths_raw = lapply(depths_raw, function(x) as.numeric(x)),
 
-    # ---------------------------------------
+   
     # 2) Parsing facies_libelle_type
-    # ---------------------------------------
+   
     facies_raw = facies_libelle_type |> 
       str_remove("^\\\\x") |>
       str_replace_all(" ", "") |>
@@ -2683,9 +2868,9 @@ df <- df %>%
       x
     }),
 
-    # ---------------------------------------
+   
     # 3) Mise en correspondance depths/facies
-    # ---------------------------------------
+   
     match_lists = Map(function(d, f){
       nd <- length(d)
       nf <- length(f)
@@ -2706,18 +2891,18 @@ df <- df %>%
   select(date_op, date_label, match_lists) %>%
   unnest(match_lists)
 
-  # ------------------------------------------------------------------
+  
   # Couleurs
-  # ------------------------------------------------------------------
+  
   facies_colors <- c(
     "Courant" = "#6D76F8",
     "Plat"    = "#7FDD4C",
     "Profond" = "#C72C48"
   )
 
-  # ------------------------------------------------------------------
+  
   # GRAPHIQUE
-  # ------------------------------------------------------------------
+  
   p <- ggplot(df, aes(x = date_label, y = profondeur, fill = facies)) +
     geom_col(position = position_dodge(width = 0.8)) +
     scale_fill_manual(values = facies_colors, drop = FALSE) +
@@ -2727,7 +2912,7 @@ df <- df %>%
       y = "Profondeur (m)",
       fill = "Faciès"
     ) +
-    theme_minimal(base_size = 12) +
+    theme_bw(base_size = 12) +
     theme(
       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
       plot.title = element_text(face = "bold")

@@ -2,7 +2,7 @@
 
 #' Histogramme IPR par date d'opération
 #'
-#' @param yaml_config Chemin du YAML de connexion Postgres
+#' @param yaml_path Chemin du YAML de connexion Postgres
 #' @param station Code Sandre de la station (ex. "04199200")
 #' @param annee_debut Année de début
 #' @param annee_fin Année de fin (défaut = année courante)
@@ -18,9 +18,8 @@
 #' plot_ipr_histogram("C:/workspace/gwilenalim/yaml/config.yml", "04199200", 2000, n_last = 12)
 #' }
 #' @export
-#' @noRd  
 plot_ipr_histogram <- function(
-  yaml_config,
+  yaml_path,
   station,
   annee_debut,
   annee_fin  = as.numeric(format(Sys.Date(), "%Y")),
@@ -29,7 +28,7 @@ plot_ipr_histogram <- function(
   bar_width = 0.9,
   n_last    = 12
 ){
-  con <- connect_pg(yaml_config)
+  con <- connect_pg(yaml_path)
   on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
   schema_safe <- sanitize_schema(schema)
@@ -86,7 +85,7 @@ plot_ipr_histogram <- function(
     ggplot2::scale_fill_manual(values = palette, limits = levels_classes, breaks = levels_classes, drop = FALSE, name = "Classe de\nqualité") +
     ggplot2::geom_hline(yintercept = c(5,16,25,36), linetype = "dashed", color = "grey40", linewidth = 0.3) +
     ggplot2::labs(title = title, x = NULL, y = NULL, fill = "Classe IPR") +
-    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme_bw(base_size = 12) +
     ggplot2::theme(panel.grid.minor = ggplot2::element_blank(),
                    ggplot2::element_text(angle = 90, hjust = 1))
 }

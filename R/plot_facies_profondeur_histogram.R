@@ -31,7 +31,7 @@
 #' Les dates (opérations ASPE) sont affichées au format \code{\%d/\%m/\%y},
 #' ordonnées chronologiquement, et pivotées de 90° pour faciliter la lecture.
 #'
-#' @param yaml_config \code{character(1)}  
+#' @param yaml_path \code{character(1)}  
 #' Chemin vers le fichier YAML contenant les informations de connexion PostgreSQL.
 #'
 #' @param code_station \code{character(1)}  
@@ -69,7 +69,7 @@
 #' @examples
 #' \dontrun{
 #' plot_facies_profondeur_histogram(
-#'   yaml_config = "config/connexion.yml",
+#'   yaml_path = "config/connexion.yml",
 #'   code_station = "04216000",
 #'   annee_debut = 2010,
 #'   n_last = 12
@@ -78,7 +78,7 @@
 #'
 #' @export
 plot_facies_profondeur_histogram <- function(
-  yaml_config,
+  yaml_path,
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
   annee_debut = 1950,
@@ -92,24 +92,24 @@ plot_facies_profondeur_histogram <- function(
   library(stringr)
   library(tidyr)
 
-  # ------------------------------------------------------------------
+  
   # Gestion code_station vs point ASPE
-  # ------------------------------------------------------------------
+  
   if (!is.null(code_station) & !is.null(code_point_prelevement_aspe)) {
     warning("Les deux paramètres sont fournis : usage prioritaire de code_station.")
   }
   use_station <- !is.null(code_station)
 
-  # ------------------------------------------------------------------
+  
   # Connexion PG
-  # ------------------------------------------------------------------
-  con <- connect_pg(yaml_config)
+  
+  con <- connect_pg(yaml_path)
   on.exit(dbDisconnect(con))
 
-  # ------------------------------------------------------------------
+  
   # Requête SQL : Récupération des champs facies_profondeur_moyenne 
   # et facies_libelle_type
-  # ------------------------------------------------------------------
+  
   if (use_station) {
     sql <- glue::glue("
       SELECT
@@ -150,9 +150,9 @@ plot_facies_profondeur_histogram <- function(
     return(NULL)
   }
 
-  # ------------------------------------------------------------------
+  
   # On ne garde que n_last dates uniques
-  # ------------------------------------------------------------------
+  
   df <- df %>%
     distinct(date_op, .keep_all = TRUE) %>%
     arrange(desc(date_op)) %>%
@@ -164,9 +164,9 @@ plot_facies_profondeur_histogram <- function(
 
 df <- df %>%
   mutate(
-    # ---------------------------------------
+   
     # 1) Parsing facies_profondeur_moyenne
-    # ---------------------------------------
+   
     facies_profondeur_moyenne = str_remove(facies_profondeur_moyenne, "^\\\\x"),
     depths_raw = str_split(
       str_replace_all(facies_profondeur_moyenne,
@@ -175,9 +175,9 @@ df <- df %>%
     ),
     depths_raw = lapply(depths_raw, function(x) as.numeric(x)),
 
-    # ---------------------------------------
+   
     # 2) Parsing facies_libelle_type
-    # ---------------------------------------
+   
     facies_raw = facies_libelle_type |> 
       str_remove("^\\\\x") |>
       str_replace_all(" ", "") |>
@@ -192,9 +192,9 @@ df <- df %>%
       x
     }),
 
-    # ---------------------------------------
+   
     # 3) Mise en correspondance depths/facies
-    # ---------------------------------------
+   
     match_lists = Map(function(d, f){
       nd <- length(d)
       nf <- length(f)
@@ -215,18 +215,18 @@ df <- df %>%
   select(date_op, date_label, match_lists) %>%
   unnest(match_lists)
 
-  # ------------------------------------------------------------------
+  
   # Couleurs
-  # ------------------------------------------------------------------
+  
   facies_colors <- c(
     "Courant" = "#6D76F8",
     "Plat"    = "#7FDD4C",
     "Profond" = "#C72C48"
   )
 
-  # ------------------------------------------------------------------
+  
   # GRAPHIQUE
-  # ------------------------------------------------------------------
+  
   p <- ggplot(df, aes(x = date_label, y = profondeur, fill = facies)) +
     geom_col(position = position_dodge(width = 0.8)) +
     scale_fill_manual(values = facies_colors, drop = FALSE) +
@@ -236,7 +236,7 @@ df <- df %>%
       y = "Profondeur (m)",
       fill = "Faciès"
     ) +
-    theme_minimal(base_size = 12) +
+    theme_bw(base_size = 12) +
     theme(
       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
       plot.title = element_text(face = "bold")

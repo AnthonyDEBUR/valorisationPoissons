@@ -6,7 +6,7 @@
 Descriptif opération}
 \usage{
 graph_descriptif_operation(
-  yaml_config,
+  yaml_path,
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
   annee_debut = 1950,
@@ -17,38 +17,48 @@ graph_descriptif_operation(
 )
 }
 \arguments{
+\item{yaml_path}{Chemin du YAML de connexion.}
+
+\item{code_station}{Code station ASPE (prioritaire si fourni avec code_point_prelevement_aspe).}
+
+\item{code_point_prelevement_aspe}{Code point ASPE.}
+
+\item{annee_debut}{Année de début de sélection (défaut 1950).}
+
+\item{annee_fin}{Année de fin de sélection (défaut année courante).}
+
+\item{n_last}{Nombre de dernières dates distinctes à afficher (défaut 10).}
+
 \item{titre}{Titre du graphique (défaut : "Descriptif opération").}
+
+\item{normalize_accents}{Si TRUE, déaccentue les textes (fusionne "À pied"/"A pied").}
 }
 \value{
-Un objet ggplot2 facetté (2 lignes : Commanditaire en haut, Opérateur en bas),
-avec en y les acteurs et, pour chaque date en x, un point si l'acteur est présent.
+Un objet ggplot2 facetté (5 panneaux : Commanditaire, Opérateur,
+Protocole, Prospection, Matériel).
 }
 \description{
 Interroge la base ASPE via un fichier YAML de connexion et extrait,
-pour une station ou un point ASPE, les acteurs :
+pour une station ou un point ASPE :
 \itemize{
-\item \code{commanditaire_libelle_aspe} (paneau du haut),
-\item \code{operateur_libelle_aspe} (paneau du bas).
-Puis les modes de pêche
-\item \code{protocole_peche} (paneau du haut),
-\item \code{moyen_prospection} (paneau du bas),
+\item Acteurs (panneaux du haut) :
+\itemize{
+\item \code{commanditaire_libelle_aspe} (panneau "Commanditaire"),
+\item \code{operateur_libelle_aspe}     (panneau "Opérateur").
+}
+\item Modes de pêche (panneaux suivants) :
+\itemize{
+\item \code{protocole_peche}   (panneau "Protocole"),
+\item \code{moyen_prospection} (panneau "Prospection").
+}
+\item Comptages (panneau regroupé en bas) :
+\itemize{
+\item \code{nombre_anodes} + \code{nombre_epuisettes} (panneau "Matériel").
+}
 }
 }
 \details{
-L'axe des x représente les dates (facteur ordonné), l'axe des y
-les acteurs (une ligne par valeur). Les points indiquent la présence
-de l'acteur pour la date donnée. Les couleurs différencient le type
-d'acteur (Commanditaire vs Opérateur) et le graphique est facetté
-en quatre panneaux empilés partie haute : (haut = Commanditaire ; bas = Opérateur).
-partie basse (haut = protocole_peche, bas = moyen_prospection)
-}
-\examples{
-\dontrun{
-graph_descriptif_operation(
-  yaml_config = "config/connexion.yml",
-  code_station = "04216000",
-  annee_debut = 2000,
-  n_last = 12
-)
-}
+L'axe des x représente les dates (facteur ordonné, dernières dates).
+Pour Commanditaire/Opérateur/Protocole/Prospection : l'axe y liste les valeurs (un point par présence).
+Pour Matériel : deux niveaux en y ("Anodes", "Epuisettes"), la valeur (agrégée par date) est inscrite dans le point.
 }

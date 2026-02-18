@@ -5,7 +5,7 @@
 \title{Histogramme des profondeurs de prélèvement ASPE pour une station}
 \usage{
 plot_profondeur_histogram(
-  yaml_config,
+  yaml_path,
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
   annee_debut = 1950,
@@ -15,7 +15,7 @@ plot_profondeur_histogram(
 )
 }
 \arguments{
-\item{yaml_config}{Chemin vers le fichier YAML contenant les informations de
+\item{yaml_path}{Chemin vers le fichier YAML contenant les informations de
 connexion PostgreSQL.}
 
 \item{code_station}{[\code{character(1)}]\
@@ -68,7 +68,7 @@ strictement chronologique dans le graphique.
 \examples{
 \dontrun{
 plot_profondeur_histogram(
-  yaml_config = "config/connexion.yml",
+  yaml_path = "config/connexion.yml",
   code_station = "04216000",
   annee_debut = 2000,
   n_last = 12

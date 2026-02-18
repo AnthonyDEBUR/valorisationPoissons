@@ -21,11 +21,12 @@
 #' plot_habitat_heatmap(".../config.yml", code_station = "04216050", annee_debut = 2000)
 #' }
 #' @export
-#' @noRd  
 plot_habitat_heatmap <- function(
   yaml_path,
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
+  titre=NULL,
+  sous_titre=NULL,
   annee_debut = 1950,
   annee_fin   = lubridate::year(Sys.Date()),
   n_last = 12,
@@ -59,6 +60,10 @@ plot_habitat_heatmap <- function(
     stop("Fournir soit `code_station`, soit `code_point_prelevement_aspe`.", call. = FALSE)
   }
 
+   if(is.null(titre)){titre <- paste("Conditions / habitats —", if(!is.null(code_station)) code_station else code_point_prelevement_aspe)}
+  
+     if(is.null(sous_titre)){sous_titre <- ""}
+  
   vars_habitats <- c(
     "abondance_abri_vegetal_aquatique","abondance_abris_rocheux","abondance_embacles_souches",
     "abondance_sous_berges","abondance_trous_fosses","abondance_vegetation_aquatique",
@@ -111,7 +116,7 @@ plot_habitat_heatmap <- function(
   if (!length(vars_non_vides)) {
     return(
       ggplot2::ggplot() +
-        ggplot2::theme_minimal(base_size = 13) +
+        ggplot2::theme_bw(base_size = 13) +
         ggplot2::labs(
           title = "Conditions / habitats — variables vides",
           subtitle = paste0(annee_debut, "–", annee_fin),
@@ -206,17 +211,22 @@ plot_habitat_heatmap <- function(
                                  breaks = c("Bas/Faible","Moyen/Stable","Haut/Fort"), drop = FALSE)
   }
 
-  p +
+  p<-p +
     ggplot2::scale_x_discrete(drop = FALSE) +
-    ggplot2::theme_minimal(base_size = 13) +
+    ggplot2::theme_bw(base_size = 13) +
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, hjust = 1, vjust = 0.5),
                    axis.title.x = ggplot2::element_blank(),
                    axis.title.y = ggplot2::element_blank(),
                    legend.position = "right",
                    panel.grid = ggplot2::element_line(color = "grey95")) +
     ggplot2::labs(
-      title = paste("Conditions / habitats —", if(!is.null(code_station)) code_station else code_point_prelevement_aspe),
-      subtitle = paste0(annee_debut, "–", annee_fin)
+      title = titre
     )
+  
+  if (sous_titre!=""){p<-p + ggplot2::labs(
+      subtitle = sous_titre)}
+  
+  return(p)
+  
 }
 

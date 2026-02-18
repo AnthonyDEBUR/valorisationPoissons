@@ -2,7 +2,7 @@
 
 #' Histogramme des métriques IPR (Observé vs Modélisé)
 #'
-#' @param yaml_config Chemin du YAML de connexion
+#' @param yaml_path Chemin du YAML de connexion
 #' @param station Code Sandre de la station
 #' @param indicateurs Vecteur parmi `c("DII","DIO","DIT","DTI","NEL","NER","NTE")`
 #' @param annee_debut Année de début (défaut 1970)
@@ -26,9 +26,8 @@
 #' plot_ipr_metrics(".../config.yml", "04199200", c("NER","NEL","DTI"), 2000, 2025, n_last = 12)
 #' }
 #' @export
-#' @noRd  
 plot_ipr_metrics <- function(
-  yaml_config,
+  yaml_path,
   station,
   indicateurs = c("DII","DIO","DIT","DTI","NEL","NER","NTE"),
   annee_debut   = 1970,
@@ -54,7 +53,7 @@ plot_ipr_metrics <- function(
     ), call. = FALSE)
   }
 
-  con <- connect_pg(yaml_config)
+  con <- connect_pg(yaml_path)
   on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
   schema_safe <- sanitize_schema(schema)

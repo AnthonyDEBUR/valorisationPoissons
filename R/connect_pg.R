@@ -6,7 +6,7 @@
 #' user/username, password/pwd, sslmode) ou sous un nœud parmi
 #' `postgres`, `default`, `db`, `database`.
 #'
-#' @param yaml_config Chemin vers le fichier YAML
+#' @param yaml_path Chemin vers le fichier YAML
 #'
 #' @return Un objet `DBIConnection`
 #'
@@ -18,8 +18,8 @@
 #' @keywords internal
 #' @noRd
 #' @export
-connect_pg <- function(yaml_config) {
-  cfg <- yaml::read_yaml(yaml_config)
+connect_pg <- function(yaml_path) {
+  cfg <- yaml::read_yaml(yaml_path)
   src <- cfg
   for (node in c("postgres", "default", "db", "database")) {
     if (is.list(cfg[[node]])) { src <- cfg[[node]]; break }

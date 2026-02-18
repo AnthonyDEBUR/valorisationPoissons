@@ -2,8 +2,10 @@
 
 export("%>%")
 export(connect_pg)
+export(graph_descriptif_operation)
 export(make_habitats_peche_planche)
 export(make_ipr_planche)
+export(make_operations_peche_planche)
 export(plot_conductivite_pechee_histogram)
 export(plot_effectifs_histogram)
 export(plot_facies_importance)
