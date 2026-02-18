@@ -1,14 +1,18 @@
 Package: valorisationPoissons
-Version: 0.0.0.9000
 Title: Package Pour Valoriser Les Données Disponibles Sous La Base ASPE
+Version: 0.0.0.9000
+Authors@R: 
+    person("Anthony", "DE BURGHRAVE", , "a.deburghrave@gmail.com", role = c("aut", "cre"))
 Description: Valorise les données de pêches électriques saisies sous ASPE.
-Authors@R: person(given = "Anthony",
-       family = "DE BURGHRAVE",
-       role = c("aut", "cre"),
-       email = "a.deburghrave@gmail.com")
 License: MIT + file LICENSE
+URL: https://github.com/AnthonyDEBUR/valorisationPoissons
+BugReports: https://github.com/AnthonyDEBUR/valorisationPoissons/issues
+Imports: 
+    magrittr
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
-URL: https://github.com/AnthonyDEBUR/valorisationPoissons
-BugReports: https://github.com/AnthonyDEBUR/valorisationPoissons/issues
+Suggests: 
+    knitr
+VignetteBuilder: knitr
+Config/fusen/version: 0.7.2
