@@ -696,7 +696,6 @@ make_ipr_planche <- function(
 #' @param annee_debut Année de début (défaut 1950)
 #' @param annee_fin Année de fin (défaut = année courante)
 #' @param n_last Nombre d'opérations affichées (dates distinctes)
-#' @param show_nulle_abondance Afficher la classe "Nulle" pour l'abondance
 #' @param dot_size Taille des points
 #' @param dot_stroke Épaisseur du trait
 #' @param abond_colors Couleurs des classes d'abondance
@@ -718,10 +717,9 @@ plot_habitat_heatmap <- function(
   annee_debut = 1950,
   annee_fin   = lubridate::year(Sys.Date()),
   n_last = 12,
-  show_nulle_abondance = FALSE,
   dot_size = 6,
   dot_stroke = 0.6,
-  abond_colors = c(Faible = "#CCFF99", Moyen = "#31a354", Fort = "#003300"),
+  abond_colors = c(Nulle = "white",Faible = "#CCFF99", Moyen = "#31a354", Fort = "#003300"),
   hydro_colors = c("Bas/Faible" = "#99FFFF", "Moyen/Stable" = "#0066CC", "Haut/Fort" = "#084594")
 ){
   y <- yaml::read_yaml(yaml_path)
@@ -837,14 +835,11 @@ plot_habitat_heatmap <- function(
       stringr::str_detect(v, "faibl")             ~ "Faible",
       stringr::str_detect(v, "modere|moyen")      ~ "Moyen",
       stringr::str_detect(v, "fort|eleve|import") ~ "Fort",
-      stringr::str_detect(v, "nul") & show_nulle_abondance ~ "Nulle",
+      stringr::str_detect(v, "nul") ~ "Nulle",
       TRUE ~ NA_character_
     )) |>
     dplyr::filter(!is.na(class_abond)) |>
     dplyr::mutate(class_abond = factor(class_abond, levels = c("Faible","Moyen","Fort","Nulle")))
-  if (!show_nulle_abondance) {
-    abond_df <- dplyr::filter(abond_df, class_abond != "Nulle")
-  }
 
   hydro_vars <- c("libelle_conditions_hydrologiques","libelle_turbidite","libelle_tendance_debit")
   hydro_df <- tidy_df |>
@@ -2671,6 +2666,190 @@ graph_descriptif_operation <- function(
 ```
 
 
+# Heatmap faunistique (ASPE) – Abondances par date et taxon regroupé
+
+```{r function}
+#' Heatmap faunistique (ASPE) – Abondances par date et taxon regroupé
+#'
+#' @param yaml_path Chemin du fichier YAML contenant la connexion PostgreSQL
+#' @param code_station Code Sandre de la station (optionnel)
+#' @param code_point_prelevement_aspe Code ASPE du point de prélèvement (optionnel)
+#' @param annee_debut Année minimale (défaut = 1950)
+#' @param annee_fin Année maximale (défaut = année courante)
+#' @param n_last Nombre de dernières opérations (dates distinctes) à conserver.
+#'              NULL = toutes (défaut).
+#' @param fill_colors Vecteur de couleurs pour le dégradé. Défaut = séquentiel bleu.
+#' @param titre Titre du graphique. Par défaut "Effectif — <code>" (station ou point ASPE).
+#' @param sous_titre Sous-titre du graphique (optionnel)
+#'
+#' @return Un objet ggplot2 représentant la heatmap
+#' @export
+plot_faune_heatmap <- function(
+  yaml_path,
+  code_station = NULL,
+  code_point_prelevement_aspe = NULL,
+  annee_debut = 1950,
+  annee_fin = lubridate::year(Sys.Date()),
+  n_last = NULL,
+  fill_colors = c("#f7fbff","#c6dbef","#6baed6","#2171b5","#08306b"),
+  titre = NULL,
+  sous_titre = NULL
+){
+
+  # ---- Connexion PG ----
+  y <- yaml::read_yaml(yaml_path)
+  y$port        <- y$port        %||% 5432
+  y$sslmode     <- y$sslmode     %||% "prefer"
+  y$search_path <- y$search_path %||% "qe,public"
+
+  con <- DBI::dbConnect(
+    RPostgres::Postgres(),
+    dbname = y$dbname, host = y$host, port = y$port,
+    user = y$user, password = y$password,
+    sslmode = y$sslmode,
+    options = sprintf("-c search_path=%s", y$search_path)
+  )
+  on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
+
+  # ---- Filtre station vs point ----
+  if (!is.null(code_station)) {
+    filtre_sql <- "s.code_station = $1"
+    param1 <- code_station
+    code_defaut <- code_station
+  } else if (!is.null(code_point_prelevement_aspe)) {
+    filtre_sql <- "s.code_point_prelevement_aspe = $1"
+    param1 <- code_point_prelevement_aspe
+    code_defaut <- code_point_prelevement_aspe
+  } else {
+    stop("Fournir code_station OU code_point_prelevement_aspe.")
+  }
+
+  # Titre par défaut si non fourni
+  if (is.null(titre)) {
+    titre <- sprintf("Effectifs - %s", code_defaut)
+  }
+
+  # ---- Requête SQL ----
+  sql <- sprintf("
+    SELECT 
+      o.date_operation,
+      lt.nom_commun_taxon,
+      lt.code_alternatif_taxon,
+      lt.code_lot,
+      lt.effectif_lot::integer
+    FROM qe.aspe_liste_taxons lt
+    JOIN qe.aspe_operations o 
+         ON lt.code_operation = o.code_operation
+    JOIN qe.aspe_stations s
+         ON o.code_point_prelevement_aspe = s.code_point_prelevement_aspe
+    WHERE %s
+      AND o.date_operation IS NOT NULL
+      AND date_part('year', CAST(o.date_operation AS timestamp)) BETWEEN $2 AND $3
+    ORDER BY CAST(o.date_operation AS timestamp)
+  ", filtre_sql)
+
+  df <- DBI::dbGetQuery(con, sql, params = list(param1, annee_debut, annee_fin))
+  if (!nrow(df)) return(NULL)
+
+  # ---- Nettoyage dates ----
+  df <- df %>%
+    dplyr::mutate(date = as.Date(lubridate::as_datetime(date_operation, tz = "UTC"))) %>%
+    dplyr::filter(!is.na(date))
+
+  # ---- Règles de regroupements taxonomiques ----
+  rules <- list(
+    BRB = "BRE",
+    CAS = "CAX", CAG = "CAX", CAD = "CAX", CAA = "CAX",
+    CCU = "CCO", CMI = "CCO",
+    CHP = "CHA",
+    GOL = "GOX", GOO = "GOX", GOU = "GOX",
+    TRL = "TRF", TRM = "TRF",
+    VAI = "PHX", VAC = "PHX", VAB = "PHX",
+    VAR = "VAN"
+  )
+
+  df$taxon_group <- dplyr::recode(df$code_alternatif_taxon, !!!rules, .default = df$code_alternatif_taxon)
+
+  # ---- Agrégation correcte (dédoublonnage de lots) ----
+  agg <- df %>%
+    dplyr::distinct(date, taxon_group, code_lot, effectif_lot, nom_commun_taxon, .keep_all = TRUE) %>%
+    dplyr::group_by(date, taxon_group, code_lot) %>%
+    dplyr::summarise(effectif_lot = sum(effectif_lot, na.rm = TRUE), .groups = "drop") %>%
+    dplyr::group_by(date, taxon_group) %>%
+    dplyr::summarise(
+      effectif_total = sum(effectif_lot, na.rm = TRUE),
+      code_lots = paste(sort(unique(code_lot)), collapse = ", "),
+      .groups = "drop"
+    )
+
+  # ---- Étiquette "nom commun" par groupe (nom le plus fréquent) ----
+  name_map <- df %>%
+    dplyr::group_by(taxon_group, nom_commun_taxon) %>%
+    dplyr::summarise(n = dplyr::n(), .groups = "drop_last") %>%
+    dplyr::arrange(taxon_group, dplyr::desc(n)) %>%
+    dplyr::slice(1) %>%
+    dplyr::ungroup() %>%
+    dplyr::transmute(taxon_group, label_taxon = nom_commun_taxon)
+
+  agg <- agg %>%
+    dplyr::left_join(name_map, by = "taxon_group") %>%
+    dplyr::mutate(label_taxon = dplyr::coalesce(label_taxon, taxon_group))
+
+  # ---- Filtrage des n dernières opérations ----
+  if (!is.null(n_last) && is.numeric(n_last) && n_last > 0) {
+    last_dates <- agg %>%
+      dplyr::distinct(date) %>%
+      dplyr::arrange(dplyr::desc(date)) %>%
+      dplyr::slice(1:n_last) %>%
+      dplyr::pull(date)
+
+    agg <- agg %>% dplyr::filter(date %in% last_dates)
+  }
+
+  # ---- Formatage des dates & gestion des zéros pour l'échelle log ----
+  agg <- agg %>%
+    dplyr::mutate(
+      date_label  = format(date, "%d/%m/%y"),
+      date_factor = factor(date_label, levels = unique(date_label), ordered = TRUE),
+      fill_value  = ifelse(effectif_total <= 0, NA_real_, effectif_total) # log10 ne gère pas 0
+    )
+
+  # ---- Heatmap ----
+  p <- ggplot2::ggplot(agg, ggplot2::aes(
+    x = date_factor,
+    y = forcats::fct_rev(label_taxon),
+    fill = fill_value
+  )) +
+    ggplot2::geom_tile(color = "grey70") +
+
+    # Valeur numérique centrée (en blanc)
+    ggplot2::geom_text(ggplot2::aes(label = effectif_total), color = "black", size = 3.2) +
+
+    # Dégradé personnalisable + échelle log10 + couleur des NA (zéros)
+    ggplot2::scale_fill_gradientn(
+      colours = fill_colors,
+      trans   = "log10",
+      name    = "Effectif (log10)",
+      na.value = "grey90"
+    ) +
+    ggplot2::theme_bw(base_size = 13) +
+    ggplot2::theme(
+      axis.text.x = ggplot2::element_text(angle = 90, hjust = 1, vjust = 0.5),
+      axis.title.x = ggplot2::element_blank(),
+      axis.title.y = ggplot2::element_blank(),
+      panel.grid = ggplot2::element_blank(),
+      legend.position = "none"
+    ) +
+    ggplot2::labs(
+      title = titre,
+      subtitle = sous_titre
+    )
+
+  return(p)
+}
+
+
+```
 
 
 
@@ -2923,7 +3102,827 @@ df <- df %>%
 
 ```
 
+# Analyse population IPR
+## tableau par opération
 
+```{r function}
+#' Heatmap 3×3 IPR (Attendu × Présent) — entièrement paramétrable
+#'
+#' @description
+#' Génère la matrice 3×3 croisant :
+#' - la probabilité d’occurrence attendue issue du modèle IPR (L1–L2–L3),
+#' - l’effectif réellement observé lors de l’opération (C1–C2–C3).
+#'
+#' Seuls les taxons contributifs de l’IPR sont utilisés (liste codée en dur).
+#' Chaque cellule affiche une étiquette multilignes regroupant les taxons présents
+#' sous la forme : `"Nom (effectif)"`.
+#'
+#' La fonction est entièrement paramétrable :
+#' - contrôle de la taille des labels internes,
+#' - contrôle de la taille des textes et titres d’axes,
+#' - possibilité d’afficher ou masquer les titres et/ou les valeurs d’axes,
+#' - personnalisation du titre du graphique et de l’épaisseur des bordures.
+#'
+#' Cette flexibilité permet notamment :
+#' - d’utiliser la fonction seule (axes complets visibles),
+#' - ou de l’intégrer dans une planche multi‑graphes avec axes communs
+#'   (en désactivant les titres des axes mais en conservant les valeurs).
+#'
+#' @param yaml_path Chemin du fichier YAML contenant les informations de connexion
+#'   à PostgreSQL.
+#' @param code_operation Code de l’opération ASPE dont la matrice IPR doit être
+#'   représentée.
+#'
+#' @param seuil_attendu Vecteur numérique de deux valeurs indiquant les seuils
+#'   haut et bas de probabilité pour définir les classes L1/L2/L3.
+#'   Par défaut `c(0.6, 0.2)`.
+#' @param seuil_abondant Seuil d’effectif au‑delà duquel la catégorie C1
+#'   (abondant) est attribuée. Par défaut `20`.
+#'
+#' @param titre Titre optionnel du graphique. Si `NULL`, aucun titre n’est ajouté.
+#'
+#' @param size_labels Taille des textes affichés dans les tuiles.
+#' @param lineheight_labels Interligne pour les labels internes à chaque tuile.
+#'
+#' @param size_axis_text Taille des valeurs d’axes (ticks).
+#' @param size_axis_title Taille des titres des axes (si affichés).
+#' @param size_title Taille du titre du graphique (si affiché).
+#' @param tile_border_size Épaisseur du contour des tuiles.
+#'
+#' @param show_axis_text Logique : afficher (`TRUE`) ou non (`FALSE`) les valeurs
+#'   des axes X et Y. Utile pour conserver les valeurs d’axes dans des planches
+#'   multi‑vignettes.
+#' @param show_axis_titles Logique : afficher (`TRUE`) ou non (`FALSE`) les titres
+#'   des axes. Généralement mis à `FALSE` dans les planches où les titres sont
+#'   mutualisés.
+#'
+#' @return Un objet **ggplot2** représentant la heatmap 3×3.
+#'
+#' @examples
+#' \dontrun{
+#' # Appel simple avec axes complets :
+#' ipr_heatmap_3x3("config.yml", code_operation = 38673)
+#'
+#' # Appel pour intégration dans une planche (axes mutualisés) :
+#' ipr_heatmap_3x3(
+#'   "config.yml",
+#'   38673,
+#'   show_axis_titles = FALSE,
+#'   show_axis_text   = TRUE
+#' )
+#' }
+#'
+#' @export
+ipr_heatmap_3x3 <- function(
+  yaml_path,
+  code_operation,
+  seuil_attendu   = c(0.6, 0.2),
+  seuil_abondant  = 20,
+  titre           = NULL,
+  size_labels     = 3.8,
+  lineheight_labels = 0.9,
+  size_axis_text  = 11,
+  size_axis_title = 12,
+  size_title      = 14,
+  tile_border_size = 1.1,
+  show_axis_text   = TRUE,
+  show_axis_titles = TRUE
+){
+  `%||%` <- function(x, y) if (!is.null(x)) x else y
+
+  # --- Vérif seuil
+  if (!is.numeric(seuil_attendu) || length(seuil_attendu) < 2)
+    stop("seuil_attendu doit avoir 2 valeurs.")
+  seuil_attendu <- sort(unique(seuil_attendu), decreasing = TRUE)
+  high_thr <- seuil_attendu[1]; low_thr <- seuil_attendu[2]
+
+  # --- Connexion
+  y <- yaml::read_yaml(yaml_path)
+  con <- DBI::dbConnect(
+    RPostgres::Postgres(),
+    dbname=y$dbname, host=y$host, port=y$port %||% 5432,
+    user=y$user, password=y$password,
+    options=sprintf("-c search_path=%s", y$search_path %||% "qe,public")
+  )
+  on.exit(try(DBI::dbDisconnect(con), silent=TRUE), add=TRUE)
+
+  # --- Lecture données ipr_compl
+  compl <- DBI::dbGetQuery(
+    con,
+    "SELECT * FROM qe.aspe_ipr_compl WHERE code_operation=$1;",
+    params=list(code_operation)
+  )
+  if (!nrow(compl)) stop("Aucune donnée ipr_compl")
+
+  # --- Groupes contributifs
+  
+  IPR_GROUPS <- c(
+    "ABL","ANG","BAF","BAM","BLN","BOU","BRX","CAX","CCO","CHX",
+    "EPI","ESX","GAR","GOX","GRE","HOT","LOX","LOT","LPX","OBX",
+    "PCH","PER","PES","PHX","PUX","ROT","SAN","SAT","SPI","SQX",
+    "TAN","TOX","TRF","VAX"
+  )
+  NOMS <- c(
+    "ABL"="Ablette","ANG"="Anguille","BAF"="Barbeau","BAM"="Barbeau mér.",
+    "BLN"="Blageon","BOU"="Bouvière","BRX"="Brème sp.","CAX"="Carassin",
+    "CCO"="Carpe","CHX"="Chabot","EPI"="Epinoche","ESX"="Brochet",
+    "GAR"="Gardon","GOX"="Goujon","GRE"="Grémille","HOT"="Hotu",
+    "LOX"="Loche sp.","LOT"="Lote","LPX"="Lamproie sp.","OBX"="Ombre",
+    "PCH"="Poisson chat","PER"="Perche","PES"="Perche soleil",
+    "PHX"="Vairon","PUX"="Epinochette","ROT"="Rotengle","SAN"="Sandre",
+    "SAT"="Saumon","SPI"="Spirlin","SQX"="Chevesne","TAN"="Tanche",
+    "TOX"="Toxostome","TRF"="Truite fario","VAX"="Vandoise"
+  )
+
+  df <- data.frame(
+    taxon = IPR_GROUPS,
+    prob = sapply(IPR_GROUPS, \(g){
+      col <- tolower(g)
+      if (col %in% names(compl)) compl[[col]][1] else NA_real_
+    }),
+    eff = sapply(IPR_GROUPS, \(g){
+      col <- paste0(tolower(g), "_eff")
+      if (col %in% names(compl)) compl[[col]][1] else 0
+    })
+  )
+
+  df <- df[!(df$eff==0 & df$prob < 0.05), ]
+
+  df$ligne <- cut(df$prob,
+                  breaks=c(-Inf, low_thr, high_thr, Inf),
+                  labels=c("L3","L2","L1"),
+                  right=TRUE)
+
+  df$colonne <- dplyr::case_when(
+    df$eff >= seuil_abondant             ~ "C1",
+    df$eff > 0 & df$eff < seuil_abondant ~ "C2",
+    df$eff == 0                          ~ "C3"
+  )
+
+  df$label <- paste0(dplyr::recode(df$taxon, !!!NOMS),
+                     " (", df$eff, ")")
+
+  # --- Grille 3x3
+  grid <- expand.grid(ligne=c("L3","L2","L1"),
+                      colonne=c("C1","C2","C3"))
+  grid <- dplyr::left_join(
+    grid,
+    df |> dplyr::group_by(ligne,colonne) |> 
+      dplyr::summarise(label=paste(label, collapse="\n"), .groups="drop"),
+    by=c("ligne","colonne")
+  )
+
+  grid$fill_color <- dplyr::case_when(
+    (grid$ligne=="L1" & grid$colonne=="C1") |
+      (grid$ligne=="L2" & grid$colonne=="C2") |
+      (grid$ligne=="L3" & grid$colonne=="C3") ~ "#4daf4a",
+    (grid$ligne=="L1" & grid$colonne=="C3") |
+      (grid$ligne=="L3" & grid$colonne=="C1") ~ "#e41a1c",
+    TRUE ~ "#ffec8b"
+  )
+
+  # --- Plot
+  p <- ggplot2::ggplot(grid, aes(x=colonne, y=ligne)) +
+    ggplot2::geom_tile(aes(fill=fill_color),
+                       color="black", linewidth=tile_border_size) +
+    ggplot2::geom_text(aes(label=label),
+                       size=size_labels,
+                       lineheight=lineheight_labels,
+                       fontface="bold") +
+    ggplot2::scale_fill_identity() +
+    ggplot2::scale_x_discrete(
+      labels=c("C1"=paste0("Eff≥",seuil_abondant),
+               "C2"=paste0("0<Eff<",seuil_abondant),
+               "C3"="Eff = 0")
+    ) +
+    ggplot2::scale_y_discrete(
+      labels=c(
+        "L1"=sprintf("Prob > %.2f",high_thr),
+        "L2"=sprintf("%.2f ≥ Prob > %.2f",high_thr,low_thr),
+        "L3"=sprintf("0 < Prob ≤ %.2f",low_thr)
+      )
+    ) +
+    ggplot2::theme_minimal() +
+    labs(y="probabilité selon IPR",
+         x="Effectif capturé") +
+    ggplot2::theme(
+      axis.text.x  = if (show_axis_text) ggplot2::element_text(size=size_axis_text)
+                     else ggplot2::element_blank(),
+      axis.text.y  = if (show_axis_text) ggplot2::element_text(size=size_axis_text)
+                     else ggplot2::element_blank(),
+      axis.title.x = if (show_axis_titles) ggplot2::element_text(size=size_axis_title, face="bold")
+                     else ggplot2::element_blank(),
+      axis.title.y = if (show_axis_titles) ggplot2::element_text(size=size_axis_title, face="bold")
+                     else ggplot2::element_blank()
+    )
+
+  if (!is.null(titre)) {
+    p <- p + ggplot2::ggtitle(titre) +
+      ggplot2::theme(plot.title=ggplot2::element_text(size=size_title, face="bold"))
+  }
+
+  return(p)
+}
+
+
+```
+
+# planche des effectifs pêchés vs attendus IPR
+
+```{r function}
+#' Planche IPR — Synthèse des n dernières opérations d'une station
+#'
+#' @description
+#' Génère une planche de graphiques représentant les **n dernières opérations IPR**
+#' réalisées sur une station donnée.  
+#'
+#' Chaque vignette est produite par `ipr_heatmap_3x3()` avec :
+#' - conservation des **valeurs d’axes** dans chaque tuile (C1/C2/C3 ; L1/L2/L3),
+#' - **masquage des titres** d’axes pour permettre une mise en page propre,
+#' - ajout d’un **titre individuel** correspondant à la date de l’opération
+#'   (format `jj/mm/aa`).
+#'
+#' Les vignettes sont ordonnées du **plus ancien au plus récent**, disposées
+#' **de gauche à droite**, puis **de haut en bas**.  
+#' La planche comporte des **titres d’axes X et Y mutualisés**, ce qui évite la
+#' redondance tout en conservant la lisibilité des valeurs d’axes dans chaque
+#' graphique individuel.
+#'
+#' @param yaml_path Chemin du fichier YAML contenant les paramètres
+#'   de connexion PostgreSQL.
+#' @param station Code Sandre de la station (`code_station`) pour laquelle
+#'   la planche doit être générée.
+#' @param annee_debut Année minimale prise en compte.  
+#'   Par défaut : `1950`.
+#' @param annee_fin Année maximale prise en compte.  
+#'   Par défaut : année courante.
+#' @param schema Nom du schéma PostgreSQL contenant les tables ASPE.
+#'   Par défaut : `"qe"`.
+#' @param titre Titre principal de la planche.  
+#'   Par défaut : `"Effectif pêché vs attendu par IPR"`.
+#' @param file_out Chemin d’enregistrement (PNG).  
+#'   Si `NULL`, aucun fichier n’est enregistré.
+#' @param width Largeur de la figure en pouces.  
+#'   Par défaut : format A4 paysage (`29.7/2.54`).
+#' @param height Hauteur de la figure en pouces.  
+#'   Par défaut : A4 paysage (`21/2.54`).
+#' @param dpi Résolution de sortie PNG. Par défaut `300`.
+#' @param n_last Nombre maximal d’opérations affichées.  
+#'   Par défaut : `12`.
+#' @param affiche_guildes_eco affiche les différentes guildes écologiques en bas de page (défaut = TRUE)
+#' @param ... Arguments supplémentaires transmis à `ipr_heatmap_3x3()`
+#'   (permet par exemple d’ajuster dynamiquement les tailles de police).
+#'
+#' @return Un objet `ggplot`/grob (assemblage cowplot) représentant la planche.
+#'   Retourne `NULL` si aucune opération IPR n’est trouvée pour la station.
+#'
+#' @details
+#' La fonction réalise les étapes suivantes :
+#'
+#' 1. Connexion à PostgreSQL via les paramètres du fichier YAML.
+#' 2. Extraction des opérations IPR correspondant à `station` depuis  
+#'    `schema.aspe_ipr_compl`, jointes à `schema.aspe_operations` pour récupérer
+#'    la date de prélèvement.
+#' 3. Filtrage selon `annee_debut` et `annee_fin`.
+#' 4. Sélection des `n_last` opérations les plus récentes, suivie d’un tri
+#'    **chronologique** du plus ancien au plus récent (ordre d’affichage).
+#' 5. Génération, pour chaque opération, d’une vignette via `ipr_heatmap_3x3()`
+#'    avec :
+#'    - **show_axis_text = TRUE** (conserve les valeurs d’axes),
+#'    - **show_axis_titles = FALSE** (titres mutualisés ensuite),
+#'    - titre de sous-graphe = date de l’opération.
+#' 6. Construction d’une grille de vignettes (4 colonnes × 3 lignes max).
+#' 7. Ajout d’un **titre général**, d’un **axe X commun** et d’un **axe Y commun**.
+#' 8. Export éventuel en PNG via `cowplot::save_plot()`.
+#'
+#' @examples
+#' \dontrun{
+#' make_analyse_pop_IPR_planche(
+#'   yaml_path = "C:/workspace/gwilenalim/yaml/config.yml",
+#'   station   = "04216050",
+#'   annee_debut = 2000,
+#'   n_last    = 12,
+#'   file_out  = "ipr_planche_04216050.png"
+#' )
+#' }
+#'
+#' @export
+make_analyse_pop_IPR_planche <- function(
+  yaml_path,
+  station,
+  annee_debut = 1950,
+  annee_fin   = as.numeric(format(Sys.Date(), "%Y")),
+  schema      = "qe",
+  titre       = "Effectif pêché vs attendu par IPR",
+  file_out    = NULL,
+  width = 29.7/2.54,
+  height = 21/2.54,
+  dpi = 300,
+  n_last = 12,
+  affiche_guildes_eco=TRUE
+){
+  `%||%` <- function(x,y) if (!is.null(x)) x else y
+
+  # --- Connexion
+  y <- yaml::read_yaml(yaml_path)
+  con <- DBI::dbConnect(
+    RPostgres::Postgres(),
+    dbname=y$dbname, host=y$host, port=y$port %||% 5432,
+    user=y$user, password=y$password,
+    options=sprintf("-c search_path=%s,public", schema)
+  )
+  on.exit(try(DBI::dbDisconnect(con), silent=TRUE), add=TRUE)
+
+  # --- Récupération opérations IPR
+  sql <- sprintf("
+    SELECT c.code_operation, o.date_operation
+    FROM %s.aspe_ipr_compl c
+    JOIN %s.aspe_operations o
+      ON c.code_operation = o.code_operation
+    WHERE c.code_station = $1;
+  ", schema, schema)
+
+  ops <- DBI::dbGetQuery(con, sql, params=list(station))
+  if (!nrow(ops)) return(NULL)
+
+  # --- Parse date
+  parse_iso <- function(x){
+    x2 <- gsub("Z$","+00:00",x)
+    out <- suppressWarnings(as.POSIXct(x2, format="%Y-%m-%dT%H:%M:%OS%z"))
+    idx <- is.na(out)
+    if (any(idx))
+      out[idx] <- suppressWarnings(as.POSIXct(x[idx], format="%Y-%m-%d"))
+    out
+  }
+
+  ops$dt <- parse_iso(ops$date_operation)
+  ops$annee <- as.integer(format(ops$dt,"%Y"))
+  ops <- ops[ops$annee>=annee_debut & ops$annee<=annee_fin, ]
+  if (!nrow(ops)) return(NULL)
+
+  ops <- ops[order(ops$dt, decreasing=TRUE), ]
+  ops <- ops[seq_len(min(n_last, nrow(ops))), ]
+  ops <- ops[order(ops$dt), ]
+
+  fmt_date <- function(x) format(x,"%d/%m/%y")
+  plots <- vector("list", nrow(ops))
+
+  # --- Génération vignettes
+  for (i in seq_len(nrow(ops))) {
+    code_op <- ops$code_operation[i]
+    dt_lab  <- fmt_date(ops$dt[i])
+
+    p <- try(
+      ipr_heatmap_3x3(
+        yaml_path=yaml_path,
+        code_operation=code_op,
+        titre=NULL,
+        size_labels=2.8,
+        lineheight_labels=0.85,
+        size_axis_text=7,
+        size_axis_title=8,
+        tile_border_size=0.6,
+        show_axis_text   = TRUE,   # <-- valeurs d’axes conservées
+        show_axis_titles = FALSE   # <-- titres supprimés (mutualisés plus tard)
+      ),
+      silent=TRUE
+    )
+
+    if (!inherits(p,"try-error")) {
+      p <- p + ggplot2::ggtitle(dt_lab) +
+        ggplot2::theme(plot.title=ggplot2::element_text(size=9, face="bold"))
+    } else {
+      p <- ggplot2::ggplot() +
+        ggplot2::geom_text(aes(0,0,label=paste0("Erreur ", code_op))) +
+        ggplot2::theme_void()
+    }
+
+    plots[[i]] <- p
+  }
+
+  # --- Axes mutualisés
+  xlab_common <- ggplot2::ggplot() +
+    ggplot2::labs(x="Effectif capturé") +
+    ggplot2::theme_void() +
+    ggplot2::theme(axis.title.x=ggplot2::element_text(size=12, face="bold"))
+
+  ylab_common <- ggplot2::ggplot() +
+    ggplot2::labs(y="Probabilité selon IPR") +
+    ggplot2::theme_void() +
+    ggplot2::theme(axis.title.y=ggplot2::element_text(size=12, face="bold", angle=90))
+
+  # --- Grille
+  grid_plots <- cowplot::plot_grid(plotlist=plots, ncol=4)
+
+  grid_with_y <- cowplot::plot_grid(
+    ylab_common, grid_plots,
+    ncol=2, rel_widths=c(0.04,1)
+  )
+
+  grid_with_xy <- cowplot::plot_grid(
+    grid_with_y, xlab_common,
+    nrow=2, rel_heights=c(1,0.07)
+  )
+
+  # --- Titre général
+  title_gg <- ggplot2::ggplot() +
+    ggplot2::labs(title=titre) +
+    ggplot2::theme_void() +
+    ggplot2::theme(
+      plot.title=ggplot2::element_text(size=16, face="bold", hjust=0.5)
+    )
+
+  planche <- cowplot::plot_grid(
+    title_gg, grid_with_xy,
+    nrow=2, rel_heights=c(0.15,1)
+  )
+
+  if(affiche_guildes_eco){
+      planche <- cowplot::plot_grid(
+    planche, graph_modalites_ipr(text_size = 3),
+    nrow=2, rel_heights=c(20,2.5)
+  )
+    
+  }
+  
+  
+  
+  # --- Export
+  if (!is.null(file_out)) {
+    cowplot::save_plot(
+      file_out, planche,
+      base_width=width, base_height=height,
+      dpi=dpi, bg="white"
+    )
+  }
+
+  return(planche)
+}
+```
+
+# Fonction regroupe codes taxons ASPE
+```{r function}
+#' Regroupe les néotaxons selon les règles du script IPR 1.0.5
+#'
+#' Cette fonction applique les clés de correspondance définies dans le script
+#' officiel de calcul de l’Indice Poissons Rivière (IPR) version 1.0.5 afin de
+#' regrouper les taxons ASPE en néotaxons.  
+#' 
+#' Chaque taxon en entrée est recherché dans une table de conversion codée en dur
+#' au sein de la fonction. Si une correspondance existe, le taxon est remplacé
+#' par son code néotaxon regroupé. Si aucune correspondance n'est trouvée,
+#' la fonction renvoie le taxon d'origine sans modification.  
+#'
+#' L'objectif est de garantir l’homogénéité des regroupements de taxons dans les
+#' traitements IPR, conformément aux spécifications de la version 1.0.5, où
+#' plusieurs taxons élémentaires (ex. *BRB*, *BRE*) sont associés à un même
+#' néotaxon (ex. *BRX*).
+#'
+#' @param codes Un vecteur de caractères contenant des codes taxons ASPE (ex. : `"BRB"`, `"VAR"`, `"ANG"`).
+#'
+#' @return Un vecteur de même longueur que \code{codes}, dans lequel chaque taxon
+#' est remplacé par son code néotaxon regroupé lorsqu'une correspondance existe,
+#' ou laissé inchangé sinon.
+#'
+#' @details
+#' La table interne de correspondance reproduit fidèlement les regroupements
+#' utilisés dans l'IPR 1.0.5 pour les besoins du calcul des métriques.  
+#' Elle inclut notamment :
+#' \itemize{
+#'   \item les regroupements des brèmes (\code{BRB}, \code{BRE} → \code{BRX}),
+#'   \item les chabots et chevesnes (\code{CHA}, \code{CHF}, \code{CHP}, etc. → \code{CHX}),
+#'   \item les vairons (\code{VAI}, \code{VAC}, \code{VAB}, etc. → \code{PHX}),
+#'   \item les loches (\code{LOF}, \code{LOL}, \code{LOQ}, etc. → \code{LOX}),
+#'   \item et tous les regroupements additionnels strictement définis dans la version 1.0.5.
+#' }
+#'
+#' Aucune modification n’est apportée aux codes taxons absents de la table
+#' de regroupement, conformément au comportement attendu du script IPR.
+#'
+#' @examples
+#' regroupe_taxons_ipr(c("BRB", "CAA", "ANG", "VAR", "XXX"))
+#' # Résultat :
+#' # [1] "BRX" "CAX" "ANG" "VAX" "XXX"
+#'
+#' @export
+regroupe_taxons_ipr <- function(codes) {
+  
+  # Table de regroupement codée en dur
+  IPR_REGROUP_MAP <- c(
+    BRB="BRX", BRE="BRX",
+    BRO="ESX", BRA="ESX",
+    CAS="CAX", CAG="CAX", CAD="CAX", CAA="CAX",
+    CCU="CCO", CMI="CCO",
+    CHA="CHX", CHF="CHX", CHP="CHX", CHB="CHX", CHH="CHX", CHD="CHX", CHR="CHX",
+    CHE="SQX", CHC="SQX",
+    GOL="GOX", GOO="GOX", GOU="GOX",
+    LOF="LOX", LOL="LOX", LOQ="LOX", LOH="LOX",
+    EPT="PUX", EPL="PUX",
+    LPP="LPX", LPR="LPX", LPM="LPX",
+    OBR="OBX", OBA="OBX",
+    TRL="TRF", TRM="TRF",
+    VAI="PHX", VAC="PHX", VAB="PHX", VAD="PHX", VAG="PHX", VAL="PHX",
+    VAR="VAX", VAN="VAX", VAA="VAX"
+  )
+  
+  # Application du mapping
+  mapped <- IPR_REGROUP_MAP[codes]
+  
+  # Pour les codes sans correspondance : renvoyer le code d'entrée
+  mapped[is.na(mapped)] <- codes[is.na(mapped)]
+  
+  return(mapped)
+}
+```
+
+# Nom vernaculaire fonction code ASPE
+
+```{r function}
+#' Renvoie les noms vernaculaires associés à des codes taxons ASPE
+#'
+#' Cette fonction permet d'associer à chaque code taxon ASPE son nom
+#' vernaculaire correspondant.  
+#' Elle utilise une table de correspondance codée en dur, constituée :
+#' \itemize{
+#'   \item de la liste \code{NOMS} fournie par l'utilisateur ;
+#'   \item des noms vernaculaires issus de la table officielle des espèces
+#'   (extrait du document fourni contenant l'ensemble des codes ASPE).
+#' }
+#'
+#' Lorsque plusieurs sources fournissent un nom pour un même code, la
+#' correspondance provenant de la table utilisateur \code{NOMS} est considérée
+#' prioritaire.  
+#' Si un code taxon ne figure dans aucune table, la fonction renvoie
+#' simplement le code d'origine.
+#'
+#' @param codes Un vecteur de caractères contenant des codes ASPE (ex. `"ABL"`,
+#' `"VAB"`, `"TRF"`, `"ANG"`).
+#'
+#' @return Un vecteur de même longueur que \code{codes}, contenant les noms
+#' vernaculaires correspondants.  
+#' Pour les codes non reconnus, la valeur retournée est le code fourni.
+#'
+#' @details
+#' La table de correspondance inclut l'ensemble des taxons présents :
+#' \itemize{
+#'   \item dans la table utilisateur (ex. : \code{"ABL"} → \code{"Ablette"},
+#'   \code{"BRX"} → \code{"Brème sp."}, etc.) ;
+#'   \item dans le document de référence joint (ex. : \code{"APR"} →
+#'   \code{"Apron du Rhône"}, \code{"OBL"} → \code{"Omble chevalier"},
+#'   \code{"CPV"} → \code{"Cyprinodonte de Valence"}, etc.).
+#' }
+#'
+#' Ce mécanisme permet d'assurer la cohérence entre les codes ASPE bruts
+#' et les regroupements éventuels effectués en amont (ex. néotaxons d'IPR).
+#'
+#' @examples
+#' nom_vernaculaire_aspe(c("ABL", "VAB", "TRF", "XXX", "ANG", "CPV"))
+#' # Résultat :
+#' # [1] "Ablette"        "Vairon béarnais" "Truite fario"
+#' # [4] "XXX"            "Anguille"       "Cyprinodonte de Valence"
+#'
+#' @export
+nom_vernaculaire_aspe <- function(codes) {
+  
+  # Table NOMS fournie par l'utilisateur
+  base_noms <- c(
+    "ABL"="Ablette","ANG"="Anguille","BAF"="Barbeau",
+    "BAM"="Barbeau mér.","BLN"="Blageon","BOU"="Bouvière",
+    "BRX"="Brème sp.","CAX"="Carassin","CCO"="Carpe",
+    "CHX"="Chabot","EPI"="Epinoche","ESX"="Brochet",
+    "GAR"="Gardon","GOX"="Goujon","GRE"="Grémille",
+    "HOT"="Hotu","LOX"="Loche sp.","LOT"="Lote",
+    "LPX"="Lamproie sp.","OBX"="Ombre","PCH"="Poisson chat",
+    "PER"="Perche","PES"="Perche soleil","PHX"="Vairon",
+    "PUX"="Epinochette","ROT"="Rotengle","SAN"="Sandre",
+    "SAT"="Saumon","SPI"="Spirlin","SQX"="Chevesne",
+    "TAN"="Tanche","TOX"="Toxostome","TRF"="Truite fario",
+    "VAX"="Vandoise"
+  )
+  
+  # Extraction du PDF (codes aspe + noms vernaculaires)
+  noms_pdf <- c(
+    "EST"="Esturgeon européen",
+    "ANG"="Anguille européenne",
+    "ATB"="Athérine",
+    "BLE"="Blennie fluviatile",
+    "BBG"="Black-Bass",
+    "CDR"="Crapet de roche",
+    "PES"="Perche-soleil",   # déjà dans base_noms
+    "ALA"="Grande Alose",
+    "ALF"="Alose feinte",
+    "LOE"="Loche d'étang",
+    "LOR"="Loche épineuse",
+    "COR"="Corégone (lavaret)",
+    "CHA"="Chabot",
+    "ABH"="Able de Heckel",
+    "ABL"="Ablette",
+    "ASP"="Aspe",
+    "BAF"="Barbeau fluviatile",
+    "BAM"="Barbeau méridional",
+    "BLN"="Blageon",
+    "BOU"="Bouvière",
+    "BRB"="Brème bordelière",
+    "BRE"="Brème commune",
+    "CAA"="Carassin doré",
+    "CAG"="Carassin argenté",
+    "CAR"="Carpe argentée",
+    "CAS"="Carassin commun",
+    "CCO"="Carpe commune",
+    "CCU"="Carpe cuir",
+    "CMI"="Carpe miroir",
+    "CGT"="Carpe à grosse tête",
+    "CHE"="Chevaine",
+    "CTI"="Carpe Amour",
+    "GAR"="Gardon",
+    "GOU"="Goujon",
+    "HOT"="Hotu",
+    "IDE"="Ide mélanote",
+    "PIM"="Tête de boule",
+    "PSR"="Pseudorasbora",
+    "ROT"="Rotengle",
+    "SPI"="Spirlin",
+    "TAN"="Tanche",
+    "TOX"="Toxostome",
+    "VAB"="Vairon béarnais",
+    "VAC"="Vairon catalan",
+    "VAI"="Vairon",
+    "VAN"="Vandoise",
+    "VAR"="Vandoise rostrée",
+    "VIM"="Vimbe",
+    "APC"="Aphanius de Corse",
+    "APE"="Aphanius d'Espagne",
+    "BRO"="Brochet",
+    "EPI"="Epinoche",
+    "EPT"="Epinochette",
+    "GOB"="Gobie buhotte",
+    "PCH"="Poisson-chat",
+    "LOT"="Lote",
+    "LOF"="Loche franche",
+    "EPE"="Eperlan",
+    "APR"="Apron du Rhône",
+    "GRE"="Grémille",
+    "PER"="Perche",
+    "SAN"="Sandre",
+    "LPM"="Lamproie marine",
+    "LPP"="Lamproie de Planer",
+    "LPR"="Lamproie fluviatile",
+    "GAM"="Gambusie",
+    "HUC"="Huchon",
+    "OBL"="Omble chevalier",
+    "SAT"="Saumon atlantique",
+    "SCO"="Saumon coho",
+    "SDF"="Saumon de fontaine",
+    "TAC"="Truite arc‑en‑ciel",
+    "TRC"="Truite à grosses taches (Corse)",
+    "TRF"="Truite fario",
+    "TRL"="Truite de lac",
+    "TRM"="Truite de mer",
+    "CRI"="Cristivomer",
+    "SIL"="Silure",
+    "OBR"="Ombre commun",
+    "UMB"="Umbre pygmée",
+    "CPV"="Cyprinodonte de Valence"
+  )
+  
+  # Fusion, priorité aux noms définis par l'utilisateur
+  TABLE <- c(base_noms, noms_pdf[setdiff(names(noms_pdf), names(base_noms))])
+  
+  # Mapping
+  out <- TABLE[codes]
+  out[is.na(out)] <- codes[is.na(out)]
+  
+  return(out)
+}
+
+```
+
+# liste les guildes écologiques des taxons contributeurs de l'IPR
+```{r function}
+#' Affiche les guildes écologiques des taxons contributeurs de l’IPR
+#'
+#' Cette fonction génère un graphique présentant, pour les espèces contributives
+#' de l’Indice Poissons Rivière (IPR), les cinq grandes guildes écologiques :
+#' \itemize{
+#'   \item \strong{réophile} — espèces recherchant les eaux courantes,
+#'   \item \strong{lithophile} — espèces pondant sur substrat minéral,
+#'   \item \strong{invertivore} — espèces s’alimentant principalement
+#'   d’invertébrés,
+#'   \item \strong{omnivore} — espèces consommant un régime alimentaire
+#'   diversifié,
+#'   \item \strong{tolérant} — espèces tolérant des perturbations ou des
+#'   conditions dégradées.
+#' }
+#'
+#' Les listes d’espèces de chaque guilde sont codées en dur dans la fonction,
+#' conformément aux espèces contributives définies dans les documents de
+#' paramétrage de l’IPR (adéquation avec les regroupements du script IPR
+#' 1.0.5). Les codes taxons ASPE sont automatiquement convertis en noms
+#' vernaculaires via la fonction \code{nom_vernaculaire_aspe()}.
+#'
+#' Le graphique final comporte une ligne par guilde, avec les noms vernaculaires
+#' alignés à gauche et la modalité affichée en gras.
+#'
+#' @param text_size Taille de la police pour les noms vernaculaires et les titres
+#' (défaut : \code{4}).
+#' @param width Largeur du graphique (en pouces), mémorisée dans l’attribut
+#' \code{"width"} de l’objet ggplot (défaut : \code{10}).
+#' @param height Hauteur du graphique (en pouces), mémorisée dans l’attribut
+#' \code{"height"} de l’objet ggplot (défaut : \code{6}).
+#'
+#' @return Un objet \code{ggplot} représentant les guildes écologiques et la
+#' liste des espèces associées.  
+#' L’objet ggplot possède en attributs \code{"width"} et \code{"height"} les
+#' valeurs transmises, pour faciliter l’export (via \code{ggsave}).
+#'
+#' @details
+#' Les cinq vecteurs de taxons codés en dur correspondent strictement aux
+#' espèces contributives de l’IPR.  
+#' Ils constituent les groupes : réophiles, lithophiles, invertivores,
+#' omnivores et tolérants. Les codes taxons sont ensuite convertis en noms
+#' vernaculaires dans le graphique final.
+#'
+#' Le graphique est construit en texte libre (sans axes ni grille), pour
+#' produire une représentation claire, lisible et adaptée aux rapports
+#' techniques ou aux présentations.  
+#' L’alignement à gauche assure une lecture ordonnée des listes d’espèces,
+#' triées alphabétiquement au sein de chaque modalité.
+#'
+#' @examples
+#' p <- graph_modalites_ipr(text_size = 4)
+#' print(p)
+#'
+#' # Export recommandé :
+#' # ggsave("guildes_ecologiques_IPR.png", p,
+#' #        width = attr(p, "width"), height = attr(p, "height"), dpi = 300)
+#'
+#' @export
+graph_modalites_ipr <- function(text_size = 4,
+                                width = 10,
+                                height = 6) {
+
+  library(dplyr)
+  library(ggplot2)
+  library(stringr)
+  library(ggtext)   # <-- nécessaire pour le gras
+
+  # -------------------------------------------------------
+  # 5 VECTEURS CODÉS EN DUR — taxons contributeurs IPR
+  # -------------------------------------------------------
+  vec_reophile    <- c("BLN","LOT","VAX","BAF","BAM","HOT","TOX","CHX","OBX","SAT","SPI","TRF")
+  vec_lithophile  <- c("LPX","PHX","BAF","BAM","HOT","TOX","PCH","CHX","OBX","SAT","SPI","TRF")
+  vec_invertivore <- c("ANG","GOX","GRE","PES","PCH","CHX","OBX","SAT","SPI","TRF")
+  vec_omnivore    <- c("ABL","BRX","CAX","CCO","EPI","GAR","PUX","ROT","SQX","TAN","VAX","TOX")
+  vec_tolerant    <- c("ABL","BRX","EPI","GAR","LOX","SQX")
+
+  # Tableau modalité -> codes
+  df <- tibble::tibble(
+    modalite = c("réophile","lithophile","invertivore","omnivore","tolérant"),
+    codes = list(
+      vec_reophile,
+      vec_lithophile,
+      vec_invertivore,
+      vec_omnivore,
+      vec_tolerant
+    )
+  ) %>%
+    rowwise() %>%
+    mutate(
+      noms = list(nom_vernaculaire_aspe(codes)),
+      ligne = paste0(
+        "**", str_to_title(modalite), " :** ",
+        paste(sort(unlist(noms)), collapse = ", ")
+      )
+    ) %>%
+    ungroup()
+
+  # -------------------------------------------------------
+  # Graphique avec RICH TEXT
+  # -------------------------------------------------------
+  p <- ggplot(df, aes(y = rev(modalite), x = 1)) +
+    ggtext::geom_richtext(
+      aes(label = ligne),
+      hjust = 0,
+      size = text_size,
+      fill = NA,
+      label.color = NA
+    ) +
+    scale_x_continuous(limits = c(1, 2)) +
+    theme_minimal() +
+    theme(
+      axis.title = element_blank(),
+      axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank(),
+      plot.margin = margin(20, 20, 20, 20)
+    )
+
+  attr(p, "width")  <- width
+  attr(p, "height") <- height
+
+  return(p)
+}
+```
 
 
 <!--

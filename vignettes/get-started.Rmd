@@ -218,12 +218,22 @@ plot_effectifs_histogram <- function(
 # descriptif opération
 
 
+# Heatmap faunistique (ASPE) – Abondances par date et taxon regroupé
 
 
 
 # Histogramme des profondeurs par faciès (ASPE) - ne fonctionne pas - bug sous hubeau
 
+# Analyse population IPR
+## tableau par opération
 
+# planche des effectifs pêchés vs attendus IPR
+
+# Fonction regroupe codes taxons ASPE
+
+# Nom vernaculaire fonction code ASPE
+
+# liste les guildes écologiques des taxons contributeurs de l'IPR
 
 
 <!--

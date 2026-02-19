@@ -1,0 +1,41 @@
+flat_first.Rmd:
+  path: dev/flat_first.Rmd
+  state: active
+  R:
+  - R/.R
+  - R/sanitize_schema.R
+  - R/connect_pg.R
+  - R/plot_ipr_histogram.R
+  - R/plot_effectifs_histogram.R
+  - R/plot_ipr_metrics.R
+  - R/make_ipr_planche.R
+  - R/plot_habitat_heatmap.R
+  - R/plot_facies_importance.R
+  - R/plot_profondeur_histogram.R
+  - R/plot_surface_pechee_histogram.R
+  - R/plot_longueur_pechee_histogram.R
+  - R/plot_largeur_lame_eau_pechee_histogram.R
+  - R/plot_temperature_instantanee_pechee_histogram.R
+  - R/plot_puissance_pechee_histogram.R
+  - R/plot_conductivite_pechee_histogram.R
+  - R/make_habitats_peche_planche.R
+  - R/make_operations_peche_planche.R
+  - R/graph_descriptif_operation.R
+  - R/plot_faune_heatmap.R
+  - R/plot_facies_profondeur_histogram.R
+  - R/ipr_heatmap_3x3.R
+  - R/make_analyse_pop_ipr_planche.R
+  - R/regroupe_taxons_ipr.R
+  - R/nom_vernaculaire_aspe.R
+  - R/graph_modalites_ipr.R
+  tests: []
+  vignettes: vignettes/get-started.Rmd
+  inflate:
+    flat_file: dev/flat_first.Rmd
+    vignette_name: Get started
+    open_vignette: true
+    check: true
+    document: true
+    overwrite: ask
+    clean: ask
+    codecov: false

@@ -13,10 +13,10 @@ plot_habitat_heatmap(
   annee_debut = 1950,
   annee_fin = lubridate::year(Sys.Date()),
   n_last = 12,
-  show_nulle_abondance = FALSE,
   dot_size = 6,
   dot_stroke = 0.6,
-  abond_colors = c(Faible = "#CCFF99", Moyen = "#31a354", Fort = "#003300"),
+  abond_colors = c(Nulle = "white", Faible = "#CCFF99", Moyen = "#31a354", Fort =
+    "#003300"),
   hydro_colors = c(`Bas/Faible` = "#99FFFF", `Moyen/Stable` = "#0066CC", `Haut/Fort` =
     "#084594")
 )
@@ -33,8 +33,6 @@ plot_habitat_heatmap(
 \item{annee_fin}{Année de fin (défaut = année courante)}
 
 \item{n_last}{Nombre d'opérations affichées (dates distinctes)}
-
-\item{show_nulle_abondance}{Afficher la classe "Nulle" pour l'abondance}
 
 \item{dot_size}{Taille des points}
 
