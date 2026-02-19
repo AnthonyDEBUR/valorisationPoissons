@@ -72,10 +72,10 @@
 <span>  annee_debut <span class="op">=</span> <span class="fl">1950</span>,</span>
 <span>  annee_fin <span class="op">=</span> <span class="fu">lubridate</span><span class="fu">::</span><span class="fu">year</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  n_last <span class="op">=</span> <span class="fl">12</span>,</span>
-<span>  show_nulle_abondance <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  dot_size <span class="op">=</span> <span class="fl">6</span>,</span>
 <span>  dot_stroke <span class="op">=</span> <span class="fl">0.6</span>,</span>
-<span>  abond_colors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>Faible <span class="op">=</span> <span class="st">"#CCFF99"</span>, Moyen <span class="op">=</span> <span class="st">"#31a354"</span>, Fort <span class="op">=</span> <span class="st">"#003300"</span><span class="op">)</span>,</span>
+<span>  abond_colors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>Nulle <span class="op">=</span> <span class="st">"white"</span>, Faible <span class="op">=</span> <span class="st">"#CCFF99"</span>, Moyen <span class="op">=</span> <span class="st">"#31a354"</span>, Fort <span class="op">=</span></span>
+<span>    <span class="st">"#003300"</span><span class="op">)</span>,</span>
 <span>  hydro_colors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>`Bas/Faible` <span class="op">=</span> <span class="st">"#99FFFF"</span>, `Moyen/Stable` <span class="op">=</span> <span class="st">"#0066CC"</span>, `Haut/Fort` <span class="op">=</span></span>
 <span>    <span class="st">"#084594"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -107,10 +107,6 @@
 
 <dt id="arg-n-last">n_last<a class="anchor" aria-label="anchor" href="#arg-n-last"></a></dt>
 <dd><p>Nombre d'opérations affichées (dates distinctes)</p></dd>
-
-
-<dt id="arg-show-nulle-abondance">show_nulle_abondance<a class="anchor" aria-label="anchor" href="#arg-show-nulle-abondance"></a></dt>
-<dd><p>Afficher la classe "Nulle" pour l'abondance</p></dd>
 
 
 <dt id="arg-dot-size">dot_size<a class="anchor" aria-label="anchor" href="#arg-dot-size"></a></dt>
