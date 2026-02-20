@@ -1,0 +1,207 @@
+---
+title: "valorisationPoissons — Illustrations et usages"
+author: "Eaux & Vilaine"
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: readable
+vignette: >
+  %\VignetteIndexEntry{valorisationPoissons — Illustrations et usages}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+
+# Répertoire contenant le fichier Rmd
+input_dir <- dirname(knitr::current_input())
+
+# Dossier des images pré‑générées
+fig_dir <- file.path(input_dir, "fig-rpubs")
+if (!dir.exists(fig_dir)) dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
+
+# Fonction robuste d'affichage d'images
+show_img <- function(files, alt = NULL) {
+  paths <- file.path(fig_dir, files)
+  ok <- file.exists(paths)
+
+  if (any(ok)) {
+    knitr::include_graphics(paths[ok])
+  } else {
+    if (is.null(alt)) alt <- paste(files, collapse = ", ")
+    cat(sprintf(
+      "> ⚠️ Image introuvable : %s\n> Vérifiez le dossier : %s\n\n",
+      alt, normalizePath(fig_dir, winslash = "/")
+    ))
+  }
+}
+
+```
+---
+
+# 1. Introduction  
+
+Le package **`valorisationPoissons`** fournit un ensemble de fonctions permettant :
+
+- d’extraire et structurer les données issues de la **base nationale ASPE**,  
+- de produire des **visualisations standardisées** pour l’analyse piscicole,  
+- d’assembler automatiquement des **planches thématiques** (IPR, habitats, opérations, etc.).
+
+Les illustrations présentées dans ce document ont été **générées à partir de données ASPE réelles**, via les fonctions du package, puis enregistrées sous forme d’images afin de produire cette version entièrement **hors‑ligne** de la vignette.
+
+---
+
+# 2. Planche IPR — Synthèse des dernières opérations  
+
+Fonction clé :  
+`make_ipr_planche()`  
+→ assemble :  
+- histogramme IPR,  
+- histogramme des effectifs,  
+- métriques IPR observé vs modélisé.
+
+
+```{r}
+show_img("planche_ipr.png")
+```
+
+---
+
+# 3. Planche Habitats  
+
+Fonction :  
+`make_habitats_peche_planche()`  
+→ inclut :  
+- heatmap des caractéristiques station (présence, abondance, hydrologie),  
+- faciès,  
+- profondeur,  
+- surface pêchée.
+
+
+```{r}
+show_img("planche_habitats.png")
+```
+# 4. Planche Opérations  
+
+Fonction :  
+`make_operations_peche_planche()`  
+→ visualise :  
+- commanditaires / opérateurs,  
+- protocoles & prospection,  
+- matériels (anodes & épuisettes),  
+- conditions de pêche.
+
+
+```{r}
+show_img("planche_operations.png")
+```
+
+---
+
+# 5. Heatmap Faunistique (néotaxons IPR)  
+
+Fonction :  
+`plot_faune_heatmap()`  
+→ regroupe les taxons selon les règles IPR,  
+→ dédoublonnage par code lot,  
+→ affichage en **log10** avec effectifs en clair.
+
+
+```{r}
+show_img("heatmap_faune.png")
+```
+
+---
+
+# 6. Heatmap Habitats détaillée  
+
+Fonction :  
+`plot_habitat_heatmap()`  
+→ présence (`presence_*`),  
+→ abondance (`abondance_*`),  
+→ hydrologie (`libelle_conditions_hydrologiques`, etc.)
+```{r}
+show_img("heatmap_habitat.png")
+```
+
+# 7. Conditions environnementales — Histogrammes  
+
+Fonctions dédiées :  
+- `plot_profondeur_histogram()`  
+- `plot_surface_pechee_histogram()`  
+- `plot_longueur_pechee_histogram()`  
+- `plot_largeur_lame_eau_pechee_histogram()`  
+- `plot_conductivite_pechee_histogram()`  
+- `plot_temperature_instantanee_pechee_histogram()`  
+- `plot_puissance_pechee_histogram()`
+
+
+```{r}
+show_img(c(
+  "hist_profondeur.png",
+  "hist_surface.png",
+  "hist_longueur.png",
+  "hist_largeur.png",
+  "hist_conductivite.png",
+  "hist_temperature.png",
+  "hist_puissance.png"
+))
+```
+
+# 8. Faciès — Importance relative  
+
+Fonction : `plot_facies_importance()`
+
+
+```{r}
+show_img("hist_facies_importance.png")
+```
+
+---
+
+# 9. IPR 3×3 — Attendu vs Observé (par opération)  
+
+Fonction : `ipr_heatmap_3x3()`
+
+```{r}
+show_img("ipr_3x3.png")
+```
+
+---
+
+# 10. Planche multi‑opérations IPR  
+
+Fonction :  
+`make_analyse_pop_IPR_planche()`  
+→ assemble les matrices 3×3 des dernières opérations.
+
+
+```{r}
+show_img("planche_ipr_multi.png")
+```
+---
+
+# 11. Guildes écologiques — Espèces contributives IPR  
+
+Fonction :  
+`graph_modalites_ipr()`  
+→ répartition des taxons IPR dans les cinq guildes (réophile, lithophile, invertivore, omnivore, tolérant).
+
+
+```{r}
+show_img("ipr_guildes.png")
+```
+
+
+---
+
+# 12. Conclusion  
+
+Cette vignette illustre les principaux résultats obtenus grâce aux fonctions du package **`valorisationPoissons`**, appliquées aux données issues de la **base nationale ASPE**.  
+Les images permettent d’exposer de manière synthétique la richesse des sorties possibles :  
+IPR, habitats, faciès, opérations, conditions environnementales, faune, et guildes écologiques.
+
+---

@@ -12,6 +12,10 @@
 #' @param fill_colors Vecteur de couleurs pour le dégradé. Défaut = séquentiel bleu.
 #' @param titre Titre du graphique. Par défaut "Effectif — <code>" (station ou point ASPE).
 #' @param sous_titre Sous-titre du graphique (optionnel)
+#' @param file_out Chemin de sauvegarde (PNG) si non NULL
+#' @param width Largeur (pouces), défaut A4 paysage
+#' @param height Hauteur (pouces), défaut A4 paysage
+#' @param dpi DPI pour l'export
 #'
 #' @return Un objet ggplot2 représentant la heatmap
 #' @export
@@ -24,7 +28,12 @@ plot_faune_heatmap <- function(
   n_last = NULL,
   fill_colors = c("#f7fbff","#c6dbef","#6baed6","#2171b5","#08306b"),
   titre = NULL,
-  sous_titre = NULL
+  sous_titre = NULL,
+  file_out   = NULL,
+  width      = 29.7 / 2.54,
+  height     = 21 / 2.54,
+  dpi        = 300
+
 ){
 
   # ---- Connexion PG ----
@@ -176,6 +185,15 @@ plot_faune_heatmap <- function(
       subtitle = sous_titre
     )
 
+      if (!is.null(file_out)) {
+    ggsave(filename = file_out, 
+           plot = p, 
+           width = width, 
+           height = height, 
+           dpi = dpi, 
+           bg = "white")
+  }
+  
   return(p)
 }
 

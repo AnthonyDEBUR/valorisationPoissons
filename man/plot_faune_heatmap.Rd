@@ -13,7 +13,11 @@ plot_faune_heatmap(
   n_last = NULL,
   fill_colors = c("#f7fbff", "#c6dbef", "#6baed6", "#2171b5", "#08306b"),
   titre = NULL,
-  sous_titre = NULL
+  sous_titre = NULL,
+  file_out = NULL,
+  width = 29.7/2.54,
+  height = 21/2.54,
+  dpi = 300
 )
 }
 \arguments{
@@ -35,6 +39,14 @@ NULL = toutes (défaut).}
 \item{titre}{Titre du graphique. Par défaut "Effectif — \if{html}{\out{<code>}}" (station ou point ASPE).}
 
 \item{sous_titre}{Sous-titre du graphique (optionnel)}
+
+\item{file_out}{Chemin de sauvegarde (PNG) si non NULL}
+
+\item{width}{Largeur (pouces), défaut A4 paysage}
+
+\item{height}{Hauteur (pouces), défaut A4 paysage}
+
+\item{dpi}{DPI pour l'export}
 }
 \value{
 Un objet ggplot2 représentant la heatmap
