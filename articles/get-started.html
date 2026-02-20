@@ -120,55 +120,82 @@ If it is the first time you use {fusen}, after 'description', you can directly r
 <h2 id="histogramme-des-effectifs-par-date-passage">Histogramme des effectifs par date / passage<a class="anchor" aria-label="anchor" href="#histogramme-des-effectifs-par-date-passage"></a>
 </h2>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co">#' Histogramme des effectifs par date/passage</span></span>
+<code class="sourceCode R"><span></span>
+<span><span class="co">#' Histogramme des effectifs par date/passage (station OU CPP)</span></span>
 <span><span class="co">#'</span></span>
 <span><span class="co">#' @param yaml_path Chemin du YAML de connexion Postgres</span></span>
-<span><span class="co">#' @param station Code Sandre de la station</span></span>
+<span><span class="co">#' @param station Code Sandre de la station (ou NULL si CPP)</span></span>
+<span><span class="co">#' @param code_point_prelevement_aspe Code ASPE du point de prélèvement (ou NULL si station)</span></span>
 <span><span class="co">#' @param annee_debut Année de début</span></span>
 <span><span class="co">#' @param annee_fin Année de fin (défaut = année courante)</span></span>
 <span><span class="co">#' @param schema Schéma SQL (défaut "qe")</span></span>
-<span><span class="co">#' @param bar_width Largeur des barres (défaut 0.9)</span></span>
+<span><span class="co">#' @param bar_width Largeur des barres</span></span>
 <span><span class="co">#' @param only_with_ipr TRUE pour ne garder que les opérations ayant un IPR</span></span>
-<span><span class="co">#' @param n_last Nombre maximum de campagnes à afficher (par dates distinctes)</span></span>
+<span><span class="co">#' @param n_last Nombre maximum de campagnes (dates distinctes)</span></span>
 <span><span class="co">#'</span></span>
-<span><span class="co">#' @return Un objet `ggplot2`</span></span>
-<span><span class="co">#'</span></span>
-<span><span class="co">#' @examples</span></span>
-<span><span class="co">#' \dontrun{</span></span>
-<span><span class="co">#' plot_effectifs_histogram(".../config.yml", "04199200", 2000, only_with_ipr = TRUE)</span></span>
-<span><span class="co">#' }</span></span>
+<span><span class="co">#' @return ggplot2 ou NULL si aucune donnée</span></span>
 <span><span class="co">#' @export</span></span>
 <span><span class="va">plot_effectifs_histogram</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span></span>
 <span>  <span class="va">yaml_path</span>,</span>
-<span>  <span class="va">station</span>,</span>
+<span>  <span class="va">station</span> <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  <span class="va">code_point_prelevement_aspe</span> <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">annee_debut</span>,</span>
 <span>  <span class="va">annee_fin</span>      <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/format.html" class="external-link">format</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">"%Y"</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  <span class="va">schema</span>        <span class="op">=</span> <span class="st">"qe"</span>,</span>
-<span>  <span class="va">bar_width</span>     <span class="op">=</span> <span class="fl">0.9</span>,</span>
-<span>  <span class="va">only_with_ipr</span> <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  <span class="va">n_last</span>        <span class="op">=</span> <span class="fl">12</span></span>
+<span>  <span class="va">schema</span>         <span class="op">=</span> <span class="st">"qe"</span>,</span>
+<span>  <span class="va">bar_width</span>      <span class="op">=</span> <span class="fl">0.9</span>,</span>
+<span>  <span class="va">only_with_ipr</span>  <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  <span class="va">n_last</span>         <span class="op">=</span> <span class="fl">12</span></span>
 <span><span class="op">)</span><span class="op">{</span></span>
+<span>  <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="va"><a href="https://dbi.r-dbi.org" class="external-link">DBI</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="va"><a href="https://glue.tidyverse.org/" class="external-link">glue</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span>; <span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span>
+<span></span>
+<span>  <span class="co"># ----------------------------------------------------------------------</span></span>
+<span>  <span class="co"># 0) Connexion PG + sécurisation schéma</span></span>
+<span>  <span class="co"># ----------------------------------------------------------------------</span></span>
 <span>  <span class="va">con</span> <span class="op">&lt;-</span> <span class="fu">connect_pg</span><span class="op">(</span><span class="va">yaml_path</span><span class="op">)</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/on.exit.html" class="external-link">on.exit</a></span><span class="op">(</span><span class="kw"><a href="https://rdrr.io/r/base/try.html" class="external-link">try</a></span><span class="op">(</span><span class="fu">DBI</span><span class="fu">::</span><span class="fu">dbDisconnect</span><span class="op">(</span><span class="va">con</span><span class="op">)</span>, silent <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>, add <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span></span>
 <span>  <span class="va">schema_safe</span> <span class="op">&lt;-</span> <span class="fu">sanitize_schema</span><span class="op">(</span><span class="va">schema</span><span class="op">)</span></span>
-<span>  <span class="va">tbl_lt</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">'"%s".aspe_liste_taxons'</span>, <span class="va">schema_safe</span><span class="op">)</span></span>
-<span>  <span class="va">tbl_ops</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">'"%s".aspe_operations'</span>,  <span class="va">schema_safe</span><span class="op">)</span></span>
-<span>  <span class="va">tbl_sta</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">'"%s".aspe_stations'</span>,    <span class="va">schema_safe</span><span class="op">)</span></span>
-<span>  <span class="va">tbl_ipr</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">'"%s".aspe_ipr'</span>,         <span class="va">schema_safe</span><span class="op">)</span></span>
 <span></span>
-<span>  <span class="va">ipr_filter_clause</span> <span class="op">&lt;-</span> <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Logic.html" class="external-link">isTRUE</a></span><span class="op">(</span><span class="va">only_with_ipr</span><span class="op">)</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"</span></span>
+<span>  <span class="va">tbl_lt</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">'"%s".aspe_liste_taxons'</span>,  <span class="va">schema_safe</span><span class="op">)</span></span>
+<span>  <span class="va">tbl_ops</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">'"%s".aspe_operations'</span>,    <span class="va">schema_safe</span><span class="op">)</span></span>
+<span>  <span class="va">tbl_sta</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">'"%s".aspe_stations'</span>,      <span class="va">schema_safe</span><span class="op">)</span></span>
+<span>  <span class="va">tbl_ipr</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">'"%s".aspe_ipr'</span>,           <span class="va">schema_safe</span><span class="op">)</span></span>
+<span></span>
+<span>  <span class="co"># ----------------------------------------------------------------------</span></span>
+<span>  <span class="co"># 1) Gestion filtre station / CPP</span></span>
+<span>  <span class="co"># ----------------------------------------------------------------------</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">station</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">filtre_sql</span> <span class="op">&lt;-</span> <span class="st">"st.code_station = $1"</span></span>
+<span>    <span class="va">param1</span>     <span class="op">&lt;-</span> <span class="va">station</span></span>
+<span>  <span class="op">}</span> <span class="kw">else</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">code_point_prelevement_aspe</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">filtre_sql</span> <span class="op">&lt;-</span> <span class="st">"st.code_point_prelevement_aspe = $1"</span></span>
+<span>    <span class="va">param1</span>     <span class="op">&lt;-</span> <span class="va">code_point_prelevement_aspe</span></span>
+<span>  <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
+<span>    <span class="kw"><a href="https://rdrr.io/r/base/stop.html" class="external-link">stop</a></span><span class="op">(</span><span class="st">"Veuillez fournir station OU code_point_prelevement_aspe."</span>, call. <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span></span>
+<span>  <span class="co"># ----------------------------------------------------------------------</span></span>
+<span>  <span class="co"># 2) Filtre IPR optionnel — sécurisé</span></span>
+<span>  <span class="co"># ----------------------------------------------------------------------</span></span>
+<span>  <span class="va">ipr_filter</span> <span class="op">&lt;-</span> <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Logic.html" class="external-link">isTRUE</a></span><span class="op">(</span><span class="va">only_with_ipr</span><span class="op">)</span><span class="op">)</span> <span class="fu">glue</span><span class="fu">::</span><span class="fu"><a href="https://glue.tidyverse.org/reference/glue.html" class="external-link">glue</a></span><span class="op">(</span><span class="st">"</span></span>
 <span><span class="st">    AND EXISTS (</span></span>
-<span><span class="st">      SELECT 1 FROM "</span>, <span class="va">tbl_ipr</span>, <span class="st">" ipr</span></span>
+<span><span class="st">      SELECT 1</span></span>
+<span><span class="st">      FROM {tbl_ipr} ipr</span></span>
 <span><span class="st">      WHERE ipr.code_operation = op.code_operation</span></span>
-<span><span class="st">        AND ipr.lib_par = 'IPR' AND ipr.resultat IS NOT NULL</span></span>
-<span><span class="st">    )"</span><span class="op">)</span> <span class="kw">else</span> <span class="st">""</span></span>
+<span><span class="st">        AND ipr.lib_par = 'IPR'</span></span>
+<span><span class="st">        AND ipr.resultat IS NOT NULL</span></span>
+<span><span class="st">    )</span></span>
+<span><span class="st">  "</span><span class="op">)</span> <span class="kw">else</span> <span class="st">""</span></span>
 <span></span>
-<span>  <span class="va">sql</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"</span></span>
+<span>  <span class="co"># ----------------------------------------------------------------------</span></span>
+<span>  <span class="co"># 3) SQL COMPLET — 100% sécurisé</span></span>
+<span>  <span class="co"># ----------------------------------------------------------------------</span></span>
+<span>  <span class="va">sql</span> <span class="op">&lt;-</span> <span class="fu">glue</span><span class="fu">::</span><span class="fu"><a href="https://glue.tidyverse.org/reference/glue.html" class="external-link">glue</a></span><span class="op">(</span><span class="st">"</span></span>
 <span><span class="st">    WITH base AS (</span></span>
 <span><span class="st">      SELECT</span></span>
 <span><span class="st">        lt.code_operation,</span></span>
-<span><span class="st">        ((op.date_operation)::timestamptz)::date AS date_op,</span></span>
+<span><span class="st">        (op.date_operation::timestamptz)::date AS date_op,</span></span>
+<span><span class="st"></span></span>
 <span><span class="st">        CASE</span></span>
 <span><span class="st">          WHEN NULLIF(btrim(lt.numero_passage), '') IS NOT NULL</span></span>
 <span><span class="st">            THEN 'P' || NULLIF(btrim(lt.numero_passage), '')</span></span>
@@ -176,20 +203,27 @@ If it is the first time you use {fusen}, after 'description', you can directly r
 <span><span class="st">            THEN NULLIF(btrim(lt.type_points), '')</span></span>
 <span><span class="st">          ELSE NULL</span></span>
 <span><span class="st">        END AS passage,</span></span>
+<span><span class="st"></span></span>
 <span><span class="st">        NULLIF(btrim(lt.code_lot), '') AS code_lot,</span></span>
+<span><span class="st"></span></span>
 <span><span class="st">        CASE</span></span>
-<span><span class="st">          WHEN btrim(lt.effectif_lot) ~ '^[0-9]+$' THEN btrim(lt.effectif_lot)::int</span></span>
+<span><span class="st">          WHEN btrim(lt.effectif_lot) ~ '^[0-9]+$'</span></span>
+<span><span class="st">            THEN btrim(lt.effectif_lot)::int</span></span>
 <span><span class="st">          ELSE 0</span></span>
 <span><span class="st">        END AS eff</span></span>
-<span><span class="st">      FROM "</span>, <span class="va">tbl_lt</span>, <span class="st">" lt</span></span>
-<span><span class="st">      JOIN "</span>, <span class="va">tbl_ops</span>, <span class="st">" op</span></span>
+<span><span class="st"></span></span>
+<span><span class="st">      FROM {tbl_lt} lt</span></span>
+<span><span class="st">      JOIN {tbl_ops} op</span></span>
 <span><span class="st">        ON op.code_operation = lt.code_operation</span></span>
-<span><span class="st">      JOIN "</span>, <span class="va">tbl_sta</span>, <span class="st">" st</span></span>
+<span><span class="st">      JOIN {tbl_sta} st</span></span>
 <span><span class="st">        ON st.code_point_prelevement_aspe = op.code_point_prelevement_aspe</span></span>
-<span><span class="st">      WHERE st.code_station = $1</span></span>
-<span><span class="st">        AND EXTRACT(YEAR FROM ((op.date_operation)::timestamptz)) BETWEEN $2 AND $3</span></span>
-<span><span class="st">        "</span>, <span class="va">ipr_filter_clause</span>, <span class="st">"</span></span>
+<span><span class="st"></span></span>
+<span><span class="st">      WHERE {filtre_sql}</span></span>
+<span><span class="st">        AND EXTRACT(YEAR FROM op.date_operation::timestamptz)</span></span>
+<span><span class="st">              BETWEEN $2 AND $3</span></span>
+<span><span class="st">        {ipr_filter}</span></span>
 <span><span class="st">    ),</span></span>
+<span><span class="st"></span></span>
 <span><span class="st">    lots_uniques AS (</span></span>
 <span><span class="st">      SELECT DISTINCT ON (code_operation, date_op, passage, code_lot)</span></span>
 <span><span class="st">        code_operation, date_op, passage, code_lot, eff</span></span>
@@ -197,28 +231,42 @@ If it is the first time you use {fusen}, after 'description', you can directly r
 <span><span class="st">      WHERE passage IS NOT NULL AND code_lot IS NOT NULL</span></span>
 <span><span class="st">      ORDER BY code_operation, date_op, passage, code_lot</span></span>
 <span><span class="st">    ),</span></span>
+<span><span class="st"></span></span>
 <span><span class="st">    sans_code_lot AS (</span></span>
 <span><span class="st">      SELECT code_operation, date_op, passage, eff</span></span>
 <span><span class="st">      FROM base</span></span>
 <span><span class="st">      WHERE passage IS NOT NULL AND code_lot IS NULL</span></span>
 <span><span class="st">    ),</span></span>
+<span><span class="st"></span></span>
 <span><span class="st">    unionee AS (</span></span>
 <span><span class="st">      SELECT code_operation, date_op, passage, eff FROM lots_uniques</span></span>
 <span><span class="st">      UNION ALL</span></span>
 <span><span class="st">      SELECT code_operation, date_op, passage, eff FROM sans_code_lot</span></span>
 <span><span class="st">    )</span></span>
+<span><span class="st"></span></span>
 <span><span class="st">    SELECT date_op, passage, SUM(eff) AS effectif</span></span>
 <span><span class="st">    FROM unionee</span></span>
 <span><span class="st">    GROUP BY date_op, passage</span></span>
 <span><span class="st">    ORDER BY date_op, passage;</span></span>
 <span><span class="st">  "</span><span class="op">)</span></span>
 <span></span>
-<span>  <span class="va">df</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu">dbGetQuery</span><span class="op">(</span><span class="va">con</span>, <span class="va">sql</span>, params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">station</span>, <span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">annee_debut</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">annee_fin</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span>  <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">df</span><span class="op">)</span><span class="op">)</span> <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="cn">NULL</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="co"># ----------------------------------------------------------------------</span></span>
+<span>  <span class="co"># 4) Exécution sécurisée</span></span>
+<span>  <span class="co"># ----------------------------------------------------------------------</span></span>
+<span>  <span class="va">df</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu">dbGetQuery</span><span class="op">(</span></span>
+<span>    <span class="va">con</span>,</span>
+<span>    <span class="va">sql</span>,</span>
+<span>    params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">param1</span>, <span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">annee_debut</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">annee_fin</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">df</span><span class="op">)</span><span class="op">)</span> <span class="kw"><a href="https://rdrr.io/r/base/function.html" class="external-link">return</a></span><span class="op">(</span><span class="cn">NULL</span><span class="op">)</span></span>
 <span></span>
+<span>  <span class="co"># ----------------------------------------------------------------------</span></span>
+<span>  <span class="co"># 5) Préparation des données</span></span>
+<span>  <span class="co"># ----------------------------------------------------------------------</span></span>
 <span>  <span class="va">df</span><span class="op">$</span><span class="va">date_op</span>    <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">date_op</span><span class="op">)</span></span>
 <span>  <span class="va">df</span><span class="op">$</span><span class="va">label_date</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/format.html" class="external-link">format</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">date_op</span>, <span class="st">"%d/%m/%y"</span><span class="op">)</span></span>
 <span></span>
+<span>  <span class="co"># n dernières dates</span></span>
 <span>  <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">n_last</span><span class="op">)</span> <span class="op">&amp;&amp;</span> <span class="fu"><a href="https://rdrr.io/r/base/is.finite.html" class="external-link">is.finite</a></span><span class="op">(</span><span class="va">n_last</span><span class="op">)</span> <span class="op">&amp;&amp;</span> <span class="va">n_last</span> <span class="op">&gt;</span> <span class="fl">0</span><span class="op">)</span> <span class="op">{</span></span>
 <span>    <span class="va">last_dates</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">date_op</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/order.html" class="external-link">order</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">date_op</span>, decreasing <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">]</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="va">n_last</span><span class="op">]</span></span>
 <span>    <span class="va">df</span> <span class="op">&lt;-</span> <span class="va">df</span><span class="op">[</span><span class="va">df</span><span class="op">$</span><span class="va">date_op</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="va">last_dates</span>, , drop <span class="op">=</span> <span class="cn">FALSE</span><span class="op">]</span></span>
@@ -226,30 +274,36 @@ If it is the first time you use {fusen}, after 'description', you can directly r
 <span></span>
 <span>  <span class="va">levels_x</span>      <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">label_date</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/order.html" class="external-link">order</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">date_op</span><span class="op">)</span><span class="op">]</span><span class="op">)</span></span>
 <span>  <span class="va">df</span><span class="op">$</span><span class="va">label_date</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">label_date</span>, levels <span class="op">=</span> <span class="va">levels_x</span>, ordered <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span></span>
 <span>  <span class="va">df</span><span class="op">$</span><span class="va">effectif</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">effectif</span><span class="op">)</span></span>
 <span>  <span class="va">df</span><span class="op">$</span><span class="va">passage</span>    <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">passage</span>, levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rev.html" class="external-link">rev</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">passage</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span>  <span class="va">df_tot</span> <span class="op">&lt;-</span> <span class="fu">stats</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/stats/aggregate.html" class="external-link">aggregate</a></span><span class="op">(</span><span class="va">effectif</span> <span class="op">~</span> <span class="va">label_date</span>, data <span class="op">=</span> <span class="va">df</span>, <span class="va">sum</span><span class="op">)</span></span>
-<span>  <span class="va">df_tot</span><span class="op">$</span><span class="va">effectif</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">df_tot</span><span class="op">$</span><span class="va">effectif</span><span class="op">)</span></span>
+<span>  <span class="co"># Total par date</span></span>
+<span>  <span class="va">df_tot</span> <span class="op">&lt;-</span> <span class="va">df</span> <span class="op"><a href="../reference/pipe.html">%&gt;%</a></span></span>
+<span>    <span class="fu">group_by</span><span class="op">(</span><span class="va">label_date</span><span class="op">)</span> <span class="op"><a href="../reference/pipe.html">%&gt;%</a></span></span>
+<span>    <span class="fu">summarise</span><span class="op">(</span>effectif <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">effectif</span><span class="op">)</span>, .groups<span class="op">=</span><span class="st">"drop"</span><span class="op">)</span></span>
 <span></span>
-<span>  <span class="va">n</span>   <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/levels.html" class="external-link">levels</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">passage</span><span class="op">)</span><span class="op">)</span></span>
-<span>  <span class="va">pal</span> <span class="op">&lt;-</span> <span class="fu">scales</span><span class="fu">::</span><span class="fu">hue_pal</span><span class="op">(</span><span class="op">)</span><span class="op">(</span><span class="va">n</span><span class="op">)</span>; <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">pal</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/levels.html" class="external-link">levels</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">passage</span><span class="op">)</span></span>
+<span>  <span class="va">pal</span> <span class="op">&lt;-</span> <span class="fu">scales</span><span class="fu">::</span><span class="fu">hue_pal</span><span class="op">(</span><span class="op">)</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/levels.html" class="external-link">levels</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">passage</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">pal</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/levels.html" class="external-link">levels</a></span><span class="op">(</span><span class="va">df</span><span class="op">$</span><span class="va">passage</span><span class="op">)</span></span>
 <span></span>
-<span>  <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">ggplot</span><span class="op">(</span><span class="va">df</span>, <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">label_date</span>, y <span class="op">=</span> <span class="va">effectif</span>, fill <span class="op">=</span> <span class="va">passage</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">geom_col</span><span class="op">(</span>width <span class="op">=</span> <span class="va">bar_width</span>, color <span class="op">=</span> <span class="st">"black"</span>, linewidth <span class="op">=</span> <span class="fl">0.4</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">geom_text</span><span class="op">(</span></span>
+<span>  <span class="co"># ----------------------------------------------------------------------</span></span>
+<span>  <span class="co"># 6) Graphique</span></span>
+<span>  <span class="co"># ----------------------------------------------------------------------</span></span>
+<span>  <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">ggplot</span><span class="op">(</span><span class="va">df</span>, <span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">label_date</span>, y <span class="op">=</span> <span class="va">effectif</span>, fill <span class="op">=</span> <span class="va">passage</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu">geom_col</span><span class="op">(</span>width <span class="op">=</span> <span class="va">bar_width</span>, colour <span class="op">=</span> <span class="st">"black"</span>, linewidth <span class="op">=</span> <span class="fl">0.4</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu">geom_text</span><span class="op">(</span></span>
 <span>      data <span class="op">=</span> <span class="va">df_tot</span>,</span>
+<span>      <span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">label_date</span>, y <span class="op">=</span> <span class="va">effectif</span>,</span>
+<span>          label <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/format.html" class="external-link">format</a></span><span class="op">(</span><span class="va">effectif</span>, big.mark <span class="op">=</span> <span class="st">" "</span>, scientific <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>      inherit.aes <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>      <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">aes</span><span class="op">(</span>x <span class="op">=</span> <span class="va">label_date</span>, y <span class="op">=</span> <span class="va">effectif</span>,</span>
-<span>                   label <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/format.html" class="external-link">format</a></span><span class="op">(</span><span class="va">effectif</span>, big.mark <span class="op">=</span> <span class="st">" "</span>, scientific <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>      vjust <span class="op">=</span> <span class="op">-</span><span class="fl">0.3</span>, fontface <span class="op">=</span> <span class="st">"plain"</span>, size <span class="op">=</span> <span class="fl">4</span></span>
+<span>      vjust <span class="op">=</span> <span class="op">-</span><span class="fl">0.3</span>, size <span class="op">=</span> <span class="fl">4</span></span>
 <span>    <span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">scale_y_continuous</span><span class="op">(</span>expand <span class="op">=</span> <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">expansion</span><span class="op">(</span>mult <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.10</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">scale_fill_manual</span><span class="op">(</span>values <span class="op">=</span> <span class="va">pal</span>, name <span class="op">=</span> <span class="st">"Passage"</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">labs</span><span class="op">(</span>title <span class="op">=</span> <span class="st">"Effectif total"</span>, x <span class="op">=</span> <span class="cn">NULL</span>, y <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">theme_bw</span><span class="op">(</span>base_size <span class="op">=</span> <span class="fl">12</span><span class="op">)</span> <span class="op">+</span></span>
-<span>    <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">theme</span><span class="op">(</span>panel.grid.minor <span class="op">=</span> <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">element_blank</span><span class="op">(</span><span class="op">)</span>,</span>
-<span>                   axis.text.x <span class="op">=</span> <span class="fu">ggplot2</span><span class="fu">::</span><span class="fu">element_text</span><span class="op">(</span>angle <span class="op">=</span> <span class="fl">90</span>, hjust <span class="op">=</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span>    <span class="fu">scale_y_continuous</span><span class="op">(</span>expand <span class="op">=</span> <span class="fu">expansion</span><span class="op">(</span>mult <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0.10</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu">scale_fill_manual</span><span class="op">(</span>values <span class="op">=</span> <span class="va">pal</span>, name <span class="op">=</span> <span class="st">"Passage"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu">labs</span><span class="op">(</span>title <span class="op">=</span> <span class="st">"Effectif total"</span>, x <span class="op">=</span> <span class="cn">NULL</span>, y <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu">theme_bw</span><span class="op">(</span>base_size <span class="op">=</span> <span class="fl">12</span><span class="op">)</span> <span class="op">+</span></span>
+<span>    <span class="fu">theme</span><span class="op">(</span>panel.grid.minor <span class="op">=</span> <span class="fu">element_blank</span><span class="op">(</span><span class="op">)</span>,</span>
+<span>          axis.text.x <span class="op">=</span> <span class="fu">element_text</span><span class="op">(</span>angle <span class="op">=</span> <span class="fl">90</span>, hjust <span class="op">=</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">}</span></span></code></pre></div>
 </div>
 <div class="section level2">
