@@ -11,7 +11,7 @@ plot_faune_heatmap(
   annee_debut = 1950,
   annee_fin = lubridate::year(Sys.Date()),
   n_last = NULL,
-  fill_colors = c("#f7fbff", "#c6dbef", "#6baed6", "#2171b5", "#08306b"),
+  fill_colors = c("#f7fbff", "#c6dbef", "#6baed6", "#2171b1", "#08519c"),
   titre = NULL,
   sous_titre = NULL,
   file_out = NULL,
