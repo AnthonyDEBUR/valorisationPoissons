@@ -92,24 +92,17 @@ plot_facies_profondeur_histogram <- function(
   library(stringr)
   library(tidyr)
 
-  
-  # Gestion code_station vs point ASPE
-  
+  # --- Paramètre station / CPP ---
   if (!is.null(code_station) & !is.null(code_point_prelevement_aspe)) {
-    warning("Les deux paramètres sont fournis : usage prioritaire de code_station.")
+    warning("code_station et code_point_prelevement_aspe fournis : priorité au code_station.")
   }
   use_station <- !is.null(code_station)
 
-  
-  # Connexion PG
-  
+  # --- Connexion PG ---
   con <- connect_pg(yaml_path)
-  on.exit(dbDisconnect(con))
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-  
-  # Requête SQL : Récupération des champs facies_profondeur_moyenne 
-  # et facies_libelle_type
-  
+  # --- SQL ---
   if (use_station) {
     sql <- glue::glue("
       SELECT
@@ -121,7 +114,8 @@ plot_facies_profondeur_histogram <- function(
       LEFT JOIN qe.aspe_stations s
         ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
       WHERE s.code_station = '{code_station}'
-        AND EXTRACT(YEAR FROM o.date_operation::date) BETWEEN {annee_debut} AND {annee_fin}
+        AND EXTRACT(YEAR FROM o.date_operation::date)
+            BETWEEN {annee_debut} AND {annee_fin}
         AND o.facies_profondeur_moyenne IS NOT NULL
         AND o.facies_libelle_type IS NOT NULL
       ORDER BY date_op DESC
@@ -137,22 +131,18 @@ plot_facies_profondeur_histogram <- function(
       LEFT JOIN qe.aspe_stations s
         ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
       WHERE o.code_point_prelevement_aspe = '{code_point_prelevement_aspe}'
-        AND EXTRACT(YEAR FROM o.date_operation::date) BETWEEN {annee_debut} AND {annee_fin}
+        AND EXTRACT(YEAR FROM o.date_operation::date)
+            BETWEEN {annee_debut} AND {annee_fin}
         AND o.facies_profondeur_moyenne IS NOT NULL
         AND o.facies_libelle_type IS NOT NULL
       ORDER BY date_op DESC
     ")
   }
 
-  df <- dbGetQuery(con, sql)
-  if (nrow(df) == 0) {
-    message("Aucune donnée disponible.")
-    return(NULL)
-  }
+  df <- DBI::dbGetQuery(con, sql)
+  if (nrow(df) == 0) return(NULL)
 
-  
-  # On ne garde que n_last dates uniques
-  
+  # --- Sélection n dernières dates ---
   df <- df %>%
     distinct(date_op, .keep_all = TRUE) %>%
     arrange(desc(date_op)) %>%
@@ -162,71 +152,67 @@ plot_facies_profondeur_histogram <- function(
   df$date_label <- factor(format(df$date_op, "%d/%m/%y"),
                           levels = format(df$date_op, "%d/%m/%y"))
 
-df <- df %>%
-  mutate(
-   
-    # 1) Parsing facies_profondeur_moyenne
-   
-    facies_profondeur_moyenne = str_remove(facies_profondeur_moyenne, "^\\\\x"),
-    depths_raw = str_split(
-      str_replace_all(facies_profondeur_moyenne,
-                      "(?<=.)(?=[0-9]+\\.)", "|"),
-      "\\|"
-    ),
-    depths_raw = lapply(depths_raw, function(x) as.numeric(x)),
+  # --- Nettoyage facies_profondeur_moyenne ---
+  # Format typique : "\x0.10 7.30" → on retire "\x" puis on découpe les nombres
+  df <- df %>%
+    mutate(
+      facies_profondeur_moyenne = str_remove(facies_profondeur_moyenne, "^\\\\x"),
+      facies_profondeur_moyenne = str_squish(facies_profondeur_moyenne)
+    )
 
-   
-    # 2) Parsing facies_libelle_type
-   
-    facies_raw = facies_libelle_type |> 
-      str_remove("^\\\\x") |>
-      str_replace_all(" ", "") |>
-      str_split("(?=[A-Z])"),
+  # Découpage en valeurs numériques (séparées par espaces)
+  df <- df %>%
+    mutate(
+      depths_list = str_split(facies_profondeur_moyenne, "\\s+"),
+      depths_list = lapply(depths_list, function(v) suppressWarnings(as.numeric(v)))
+    )
 
-    facies_raw = lapply(facies_raw, function(x){
-      x <- trimws(x)
-      x[x==""] <- NA
-      x <- x[!is.na(x)]
-      # Normalisation Profond* → Profond
-      x <- ifelse(grepl("^Profond", x, ignore.case = TRUE), "Profond", x)
-      x
-    }),
+  # --- Nettoyage facies_libelle_type ---
+  df <- df %>%
+    mutate(
+      facies_raw = str_remove(facies_libelle_type, "^\\\\x"),
+      facies_raw = str_squish(facies_raw),
+      facies_raw = str_replace_all(facies_raw, " ", ""),
+      facies_raw = str_split(facies_raw, "(?=[A-Z])"),
+      facies_raw = lapply(facies_raw, function(v){
+        v <- v[!is.na(v) & v != ""]
+        # Normalisation Profond*
+        v <- ifelse(grepl("^Profond", v, ignore.case = TRUE), "Profond", v)
+        v
+      })
+    )
 
-   
-    # 3) Mise en correspondance depths/facies
-   
-    match_lists = Map(function(d, f){
-      nd <- length(d)
-      nf <- length(f)
+  # --- Mise en correspondance profondeurs / faciès ---
+  df <- df %>%
+    rowwise() %>%
+    mutate(
+      match_lists = list({
+        d <- depths_list
+        f <- facies_raw
+        nd <- length(d)
+        nf <- length(f)
 
-      # Si même longueur → parfait
-      if(nd == nf){
-        tibble(profondeur = d, facies = f)
-      } else {
-        # répliquer le plus court
-        if(nd > nf){
+        if (nd == nf) {
+          tibble(profondeur = d, facies = f)
+        } else if (nd > nf) {
           tibble(profondeur = d, facies = rep(f, length.out = nd))
         } else {
           tibble(profondeur = rep(d, length.out = nf), facies = f)
         }
-      }
-    }, depths_raw, facies_raw)
-  ) %>%
-  select(date_op, date_label, match_lists) %>%
-  unnest(match_lists)
+      })
+    ) %>%
+    ungroup() %>%
+    select(date_op, date_label, match_lists) %>%
+    unnest(match_lists)
 
-  
-  # Couleurs
-  
+  # --- Couleurs ---
   facies_colors <- c(
     "Courant" = "#6D76F8",
-    "Plat"    = "#7FDD4C",
+    "Plat" = "#7FDD4C",
     "Profond" = "#C72C48"
   )
 
-  
-  # GRAPHIQUE
-  
+  # --- Graphique ---
   p <- ggplot(df, aes(x = date_label, y = profondeur, fill = facies)) +
     geom_col(position = position_dodge(width = 0.8)) +
     scale_fill_manual(values = facies_colors, drop = FALSE) +

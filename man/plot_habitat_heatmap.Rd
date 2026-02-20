@@ -2,7 +2,7 @@
 % Please edit documentation in R/plot_habitat_heatmap.R
 \name{plot_habitat_heatmap}
 \alias{plot_habitat_heatmap}
-\title{Heatmap des conditions / habitats (présences, abondances, hydrologie)}
+\title{Heatmap des conditions / habitats (présences, abondances, hydrologie) — station OU CPP}
 \usage{
 plot_habitat_heatmap(
   yaml_path,
@@ -18,7 +18,8 @@ plot_habitat_heatmap(
   abond_colors = c(Nulle = "white", Faible = "#CCFF99", Moyen = "#31a354", Fort =
     "#003300"),
   hydro_colors = c(`Bas/Faible` = "#99FFFF", `Moyen/Stable` = "#0066CC", `Haut/Fort` =
-    "#084594")
+    "#084594"),
+  schema = "qe"
 )
 }
 \arguments{
@@ -27,6 +28,10 @@ plot_habitat_heatmap(
 \item{code_station}{Code Sandre de la station (ou NULL si \code{code_point_prelevement_aspe} fourni)}
 
 \item{code_point_prelevement_aspe}{Code du point ASPE (ou NULL si \code{code_station} fourni)}
+
+\item{titre}{Titre personnalisé ; si NULL, construit automatiquement (CODE — LIBELLÉ station, ou WAMA)}
+
+\item{sous_titre}{Sous-titre (ex: période) ; "" pour rien}
 
 \item{annee_debut}{Année de début (défaut 1950)}
 
@@ -41,15 +46,12 @@ plot_habitat_heatmap(
 \item{abond_colors}{Couleurs des classes d'abondance}
 
 \item{hydro_colors}{Couleurs des classes hydrologiques}
+
+\item{schema}{Schéma SQL (défaut "qe")}
 }
 \value{
 Un objet \code{ggplot2} (ou \code{NULL} si aucune donnée)
 }
 \description{
-Heatmap des conditions / habitats (présences, abondances, hydrologie)
-}
-\examples{
-\dontrun{
-plot_habitat_heatmap(".../config.yml", code_station = "04216050", annee_debut = 2000)
-}
+Heatmap des conditions / habitats (présences, abondances, hydrologie) — station OU CPP
 }

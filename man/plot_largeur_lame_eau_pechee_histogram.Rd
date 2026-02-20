@@ -11,7 +11,8 @@ plot_largeur_lame_eau_pechee_histogram(
   annee_debut = 1950,
   annee_fin = as.integer(format(Sys.Date(), "\%Y")),
   n_last = 10,
-  titre = "Largeur lame d'eau (m)"
+  titre = "Largeur lame d'eau (m)",
+  schema = "qe"
 )
 }
 \arguments{

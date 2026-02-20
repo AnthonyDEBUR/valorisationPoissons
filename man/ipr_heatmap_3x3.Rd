@@ -6,7 +6,9 @@
 \usage{
 ipr_heatmap_3x3(
   yaml_path,
-  code_operation,
+  code_operation = NULL,
+  code_station = NULL,
+  code_point_prelevement_aspe = NULL,
   seuil_attendu = c(0.6, 0.2),
   seuil_abondant = 20,
   titre = NULL,

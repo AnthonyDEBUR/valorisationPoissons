@@ -9,19 +9,12 @@
 #' @param indicateurs Vecteur d'indicateurs pour les métriques
 #' @param schema Schéma SQL (défaut "qe")
 #' @param titre Titre principal (défaut: "<station> — Synthèse IPR")
-#' @param sous_titre Sous-titre (défaut: "Synthèse réalisée le <date> par Eaux & Vilaine")
-#' @param file_out Chemin de sauvegarde (PNG) si non NULL
-#' @param width Largeur (pouces), défaut A4 paysage
-#' @param height Hauteur (pouces), défaut A4 paysage
-#' @param dpi DPI pour l'export
-#' @param n_last Nombre maximum de campagnes affichées
+#' @param sous_titre Sous-titre
+#' @param file_out Fichier PNG en sortie
+#' @param width,height,dpi Format du PNG
+#' @param n_last Nombre d'opérations (dates distinctes)
 #'
-#' @return Un objet `ggplot` (composé avec `cowplot`)
-#'
-#' @examples
-#' \dontrun{
-#' make_ipr_planche(".../config.yml", "04216050", annee_debut = 2000, n_last = 12)
-#' }
+#' @return Un ggplot/cowplot ou NULL
 #' @export
 make_ipr_planche <- function(
   yaml_path,
@@ -29,37 +22,146 @@ make_ipr_planche <- function(
   annee_debut = 1950,
   annee_fin   = as.numeric(format(Sys.Date(), "%Y")),
   indicateurs = c("DII","DIO","DIT","DTI","NEL","NER","NTE"),
-  schema     = "qe",
-  titre      = NULL,
+  schema = "qe",
+  titre = NULL,
   sous_titre = NULL,
-  file_out   = NULL,
-  width      = 29.7 / 2.54,
-  height     = 21 / 2.54,
-  dpi        = 300,
-  n_last     = 12
+  file_out = NULL,
+  width = 29.7 / 2.54,
+  height = 21 / 2.54,
+  dpi = 300,
+  n_last = 12
 ){
-  if (is.null(titre))      titre      <- glue::glue("{station} — Synthèse IPR")
-  if (is.null(sous_titre)) sous_titre <- glue::glue("Synthèse réalisée le {format(Sys.Date(), '%d/%m/%Y')} par Eaux & Vilaine")
+  require(DBI); require(glue); require(cowplot)
+  `%||%` <- function(x, y) if (!is.null(x)) x else y
 
-  graph_ipr <- plot_ipr_histogram(yaml_path, station, annee_debut, annee_fin, schema, n_last = n_last)
-  graph_eff <- plot_effectifs_histogram(yaml_path, station, annee_debut, annee_fin, schema, only_with_ipr = TRUE, n_last = n_last)
-  graph_met <- plot_ipr_metrics(yaml_path, station, indicateurs, annee_debut, annee_fin, schema, table = "aspe_ipr",
-                                n_lignes_facets = 2, n_last = n_last)
+  # --------------------------------------------------------------------
+  # 1) Titre automatique
+  # --------------------------------------------------------------------
+  if (is.null(titre)) 
+    titre <- glue::glue("{station} — Synthèse IPR")
+  if (is.null(sous_titre))
+    sous_titre <- glue::glue("Synthèse réalisée le {format(Sys.Date(), '%d/%m/%Y')} par Eaux & Vilaine")
 
-  if (is.null(graph_ipr) && is.null(graph_eff) && is.null(graph_met)) return(NULL)
+  # --------------------------------------------------------------------
+  # 2) Connexion & sécurisation schéma
+  # --------------------------------------------------------------------
+  con <- connect_pg(yaml_path)
+  on.exit(try(DBI::dbDisconnect(con), silent=TRUE), add=TRUE)
 
+  schema_safe <- sanitize_schema(schema)
+  tbl_ipr <- sprintf('"%s".aspe_ipr',       schema_safe)
+  tbl_ops <- sprintf('"%s".aspe_operations',schema_safe)
+  tbl_ipr_compl <- sprintf('"%s".aspe_ipr_compl', schema_safe)
+
+  # --------------------------------------------------------------------
+  # 3) Extraction des opérations IPR pour la station
+  # --------------------------------------------------------------------
+  sql_ops <- glue::glue("
+    SELECT c.code_operation, o.date_operation
+    FROM {tbl_ipr_compl} c
+    JOIN {tbl_ops} o
+      ON c.code_operation = o.code_operation
+    WHERE c.code_station = $1
+  ")
+
+  ops <- DBI::dbGetQuery(con, sql_ops, params=list(station))
+  if (!nrow(ops)) return(NULL)
+
+  # Correction parsing date ISO/hubeau
+  parse_iso <- function(x){
+    x2 <- gsub("Z$", "+00:00", x)
+    out <- suppressWarnings(as.POSIXct(x2, format="%Y-%m-%dT%H:%M:%OS%z"))
+    bad <- is.na(out)
+    if (any(bad)) out[bad] <- suppressWarnings(as.POSIXct(x[bad], format="%Y-%m-%d"))
+    out
+  }
+
+  ops$dt <- parse_iso(ops$date_operation)
+  ops$annee <- as.integer(format(ops$dt,"%Y"))
+
+  ops <- ops[ops$annee >= annee_debut & ops$annee <= annee_fin, ]
+  if (!nrow(ops)) return(NULL)
+
+  # Trier : du plus récent → plus ancien → n_last → re-tri
+  ops <- ops[order(ops$dt, decreasing=TRUE), ]
+  ops <- ops[seq_len(min(n_last, nrow(ops))), ]
+  ops <- ops[order(ops$dt), ]
+
+  fmt_date <- function(x) format(x,"%d/%m/%y")
+
+  # --------------------------------------------------------------------
+  # 4) Génération des vignettes : histogramme IPR, effectifs, métriques
+  # --------------------------------------------------------------------
+  graph_ipr <- plot_ipr_histogram(
+    yaml_path = yaml_path,
+    station   = station,
+    annee_debut = annee_debut,
+    annee_fin   = annee_fin,
+    schema      = schema_safe,
+    n_last      = n_last
+  )
+
+  graph_eff <- plot_effectifs_histogram(
+    yaml_path = yaml_path,
+    station   = station,
+    annee_debut = annee_debut,
+    annee_fin   = annee_fin,
+    schema      = schema_safe,
+    only_with_ipr = TRUE,
+    n_last      = n_last
+  )
+
+  graph_met <- plot_ipr_metrics(
+    yaml_path = yaml_path,
+    station   = station,
+    indicateurs = indicateurs,
+    annee_debut = annee_debut,
+    annee_fin   = annee_fin,
+    schema      = schema_safe,
+    n_last      = n_last
+  )
+
+  if (is.null(graph_ipr) && is.null(graph_eff) && is.null(graph_met))
+    return(NULL)
+
+  # --------------------------------------------------------------------
+  # 5) Mise en page cowplot (inchangée)
+  # --------------------------------------------------------------------
   title_gg <- ggplot2::ggplot() +
     ggplot2::labs(title = titre, subtitle = sous_titre) +
     ggplot2::theme_void() +
-    ggplot2::theme(plot.title = ggplot2::element_text(size = 16, face = "bold", hjust = 0.5),
-                   plot.subtitle = ggplot2::element_text(size = 11, hjust = 0.5))
-   block_middle <- cowplot::plot_grid(graph_ipr, graph_eff, nrow = 1, rel_widths = c(3, 2))
-  planche      <- cowplot::plot_grid(title_gg, block_middle, graph_met, nrow = 3, rel_heights = c(0.40, 1, 2))
+    ggplot2::theme(
+      plot.title    = ggplot2::element_text(size = 16, face="bold", hjust = 0.5),
+      plot.subtitle = ggplot2::element_text(size = 11, hjust = 0.5)
+    )
 
+  block_middle <- cowplot::plot_grid(
+    graph_ipr, graph_eff,
+    nrow = 1, rel_widths = c(3, 2)
+  )
+
+  planche <- cowplot::plot_grid(
+    title_gg,
+    block_middle,
+    graph_met,
+    nrow = 3,
+    rel_heights = c(0.40, 1, 2)
+  )
+
+  # --------------------------------------------------------------------
+  # 6) Export PNG
+  # --------------------------------------------------------------------
   if (!is.null(file_out)) {
-    cowplot::save_plot(filename = file_out, plot = planche, base_width = width, base_height = height, dpi = dpi, bg = "white")
+    cowplot::save_plot(
+      filename = file_out,
+      plot     = planche,
+      base_width  = width,
+      base_height = height,
+      dpi         = dpi,
+      bg          = "white"
+    )
   }
-  planche
-}
 
+  return(planche)
+}
 

@@ -13,7 +13,8 @@ graph_descriptif_operation(
   annee_fin = as.integer(format(Sys.Date(), "\%Y")),
   n_last = 10,
   titre = "Descriptif opération",
-  normalize_accents = TRUE
+  normalize_accents = TRUE,
+  schema = "qe"
 )
 }
 \arguments{

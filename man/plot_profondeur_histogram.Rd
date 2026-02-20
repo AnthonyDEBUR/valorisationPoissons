@@ -11,7 +11,8 @@ plot_profondeur_histogram(
   annee_debut = 1950,
   annee_fin = as.integer(format(Sys.Date(), "\%Y")),
   n_last = 10,
-  titre = "Prof. moy. station (m)"
+  titre = "Prof. moy. station (m)",
+  schema = "qe"
 )
 }
 \arguments{

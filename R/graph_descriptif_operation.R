@@ -37,70 +37,71 @@ graph_descriptif_operation <- function(
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
   annee_debut = 1950,
-  annee_fin = as.integer(format(Sys.Date(), "%Y")),
-  n_last = 10,
-  titre = "Descriptif opération",
-  normalize_accents = TRUE
+  annee_fin   = as.integer(format(Sys.Date(), "%Y")),
+  n_last      = 10,
+  titre       = "Descriptif opération",
+  normalize_accents = TRUE,
+  schema      = "qe"
 ){
-  library(DBI)
-  library(dplyr)
-  library(ggplot2)
-  library(lubridate)
-  library(stringr)
+  library(DBI); library(dplyr); library(ggplot2)
+  library(lubridate); library(stringr); library(glue)
 
-  if (!is.null(code_station) & !is.null(code_point_prelevement_aspe)) {
-    warning("Les deux paramètres sont fournis : code_station prioritaire.")
-  }
-  use_station <- !is.null(code_station)
-
+  # ----------------------------------------------------------------------
+  # 1) Connexion + tables sécurisées
+  # ----------------------------------------------------------------------
   con <- connect_pg(yaml_path)
-  on.exit(DBI::dbDisconnect(con))
+  on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
-  # --- Requête SQL ---
-  if (use_station) {
-    sql <- glue::glue("
-      SELECT
-        s.code_station,
-        o.date_operation::date AS date_op,
-        o.commanditaire_libelle_aspe,
-        o.operateur_libelle_aspe,
-        o.protocole_peche,
-        o.moyen_prospection,
-        o.nombre_anodes,
-        o.nombre_epuisettes
-      FROM qe.aspe_operations o
-      LEFT JOIN qe.aspe_stations s
-        ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
-      WHERE s.code_station = '{code_station}'
-        AND EXTRACT(YEAR FROM o.date_operation::date)
-            BETWEEN {annee_debut} AND {annee_fin}
-      ORDER BY date_op DESC
-    ")
+  schema_safe <- sanitize_schema(schema)
+  tbl_ops <- sprintf('"%s".aspe_operations',  schema_safe)
+  tbl_sta <- sprintf('"%s".aspe_stations',    schema_safe)
+
+  # ----------------------------------------------------------------------
+  # 2) Station OU CPP — CAS CPP = PAS DE JOIN (évite d'exclure les opérations)
+  # ----------------------------------------------------------------------
+  if (!is.null(code_station)) {
+    mode <- "station"
+    param1 <- code_station
+    join_sql   <- glue("LEFT JOIN {tbl_sta} s ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe")
+    filtre_sql <- "s.code_station = $1"
+    select_station <- "s.code_station"
+  } else if (!is.null(code_point_prelevement_aspe)) {
+    mode <- "cpp"
+    param1 <- code_point_prelevement_aspe
+    join_sql   <- ""  # ❗ aucun JOIN en mode CPP orphelin
+    filtre_sql <- "o.code_point_prelevement_aspe = $1"
+    # pour garder une colonne code_station (NULL en CPP orphelin)
+    select_station <- "NULL::text AS code_station"
   } else {
-    sql <- glue::glue("
-      SELECT
-        s.code_station,
-        o.date_operation::date AS date_op,
-        o.commanditaire_libelle_aspe,
-        o.operateur_libelle_aspe,
-        o.protocole_peche,
-        o.moyen_prospection,
-        o.nombre_anodes,
-        o.nombre_epuisettes
-      FROM qe.aspe_operations o
-      LEFT JOIN qe.aspe_stations s
-        ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
-      WHERE o.code_point_prelevement_aspe = '{code_point_prelevement_aspe}'
-        AND EXTRACT(YEAR FROM o.date_operation::date)
-            BETWEEN {annee_debut} AND {annee_fin}
-      ORDER BY date_op DESC
-    ")
+    stop("Veuillez fournir code_station OU code_point_prelevement_aspe.", call. = FALSE)
   }
 
-  df <- DBI::dbGetQuery(con, sql)
+  # ----------------------------------------------------------------------
+  # 3) Requête SQL unifiée (sécurisée)
+  # ----------------------------------------------------------------------
+  sql <- glue("
+    SELECT
+      {select_station},
+      o.date_operation::date AS date_op,
+      o.commanditaire_libelle_aspe,
+      o.operateur_libelle_aspe,
+      o.protocole_peche,
+      o.moyen_prospection,
+      o.nombre_anodes,
+      o.nombre_epuisettes
+    FROM {tbl_ops} o
+    {join_sql}
+    WHERE {filtre_sql}
+      AND EXTRACT(YEAR FROM o.date_operation::date) BETWEEN $2 AND $3
+    ORDER BY date_op DESC;
+  ")
+
+  df <- DBI::dbGetQuery(con, sql, params = list(param1, annee_debut, annee_fin))
   if (nrow(df) == 0) return(NULL)
 
-  # --- Nettoyage des libellés ---
+  # ----------------------------------------------------------------------
+  # 4) Nettoyage des libellés
+  # ----------------------------------------------------------------------
   df <- df %>%
     mutate(
       commanditaire_libelle_aspe = na_if(str_squish(trimws(commanditaire_libelle_aspe)), ""),
@@ -109,144 +110,127 @@ graph_descriptif_operation <- function(
       moyen_prospection          = na_if(str_squish(trimws(moyen_prospection)), "")
     )
 
-  if (isTRUE(normalize_accents)) {
-    if (requireNamespace("stringi", quietly = TRUE)) {
-      df <- df %>%
-        mutate(
-          protocole_peche   = stringi::stri_trans_general(protocole_peche, "Latin-ASCII"),
-          moyen_prospection = stringi::stri_trans_general(moyen_prospection, "Latin-ASCII")
-        )
-    }
+  if (isTRUE(normalize_accents) && requireNamespace("stringi", quietly = TRUE)) {
+    df <- df %>%
+      mutate(
+        protocole_peche   = stringi::stri_trans_general(protocole_peche, "Latin-ASCII"),
+        moyen_prospection = stringi::stri_trans_general(moyen_prospection, "Latin-ASCII")
+      )
   }
 
-  # --- n dernières dates ---
+  # ----------------------------------------------------------------------
+  # 5) n dernières dates distinctes (du plus récent au plus ancien)
+  # ----------------------------------------------------------------------
   last_dates <- df %>%
     distinct(date_op) %>%
     arrange(desc(date_op)) %>%
     slice(1:n_last) %>%
-    arrange(date_op)
+    arrange(date_op)      # ré-ordonner chronologique pour l’affichage
 
-  # --- Qualitatifs dans facettes dédiées ---
-  cmd <- df %>% semi_join(last_dates, by="date_op") %>%
-    transmute(date_op, type="Commanditaire",
-              acteur=commanditaire_libelle_aspe, valeur=NA_real_) %>%
+  # ----------------------------------------------------------------------
+  # 6) Données pour facettes
+  # ----------------------------------------------------------------------
+  cmd <- df %>% semi_join(last_dates, by = "date_op") %>%
+    transmute(date_op, type = "Commanditaire",
+              acteur = commanditaire_libelle_aspe, valeur = NA_real_) %>%
     filter(!is.na(acteur)) %>% distinct()
 
-  oper <- df %>% semi_join(last_dates, by="date_op") %>%
-    transmute(date_op, type="Opérateur",
-              acteur=operateur_libelle_aspe, valeur=NA_real_) %>%
+  oper <- df %>% semi_join(last_dates, by = "date_op") %>%
+    transmute(date_op, type = "Opérateur",
+              acteur = operateur_libelle_aspe, valeur = NA_real_) %>%
     filter(!is.na(acteur)) %>% distinct()
 
-  # --- Qualitatifs dans la facette Protocole ---
-  protocole <- df %>% semi_join(last_dates, by="date_op") %>%
-    transmute(date_op, type="Protocole",
-              acteur=protocole_peche, valeur=NA_real_) %>%
+  protocole <- df %>% semi_join(last_dates, by = "date_op") %>%
+    transmute(date_op, type = "Protocole",
+              acteur = protocole_peche, valeur = NA_real_) %>%
     filter(!is.na(acteur)) %>% distinct()
 
-  prospection <- df %>% semi_join(last_dates, by="date_op") %>%
-    transmute(date_op, type="Prospection",
-              acteur=moyen_prospection, valeur=NA_real_) %>%
+  prospection <- df %>% semi_join(last_dates, by = "date_op") %>%
+    transmute(date_op, type = "Prospection",
+              acteur = moyen_prospection, valeur = NA_real_) %>%
     filter(!is.na(acteur)) %>% distinct()
 
-  # --- Quantitatifs dans Protocole (agrégation = moyenne) ---
-  anodes <- df %>% semi_join(last_dates, by="date_op") %>%
-    transmute(date_op, type="Anodes", acteur="Anodes",
-              valeur=as.numeric(nombre_anodes)) %>%
+  anodes <- df %>% semi_join(last_dates, by = "date_op") %>%
+    transmute(date_op, type = "Anodes", acteur = "Anodes",
+              valeur = as.numeric(nombre_anodes)) %>%
     group_by(date_op, type, acteur) %>%
-    summarise(valeur=if(all(is.na(valeur))) NA_real_ else mean(valeur, na.rm=TRUE),
-              .groups="drop") %>%
+    summarise(valeur = if (all(is.na(valeur))) NA_real_ else mean(valeur, na.rm = TRUE), .groups = "drop") %>%
     filter(!is.na(valeur))
 
-  epuisettes <- df %>% semi_join(last_dates, by="date_op") %>%
-    transmute(date_op, type="Epuisettes", acteur="Epuisettes",
-              valeur=as.numeric(nombre_epuisettes)) %>%
+  epuisettes <- df %>% semi_join(last_dates, by = "date_op") %>%
+    transmute(date_op, type = "Epuisettes", acteur = "Epuisettes",
+              valeur = as.numeric(nombre_epuisettes)) %>%
     group_by(date_op, type, acteur) %>%
-    summarise(valeur=if(all(is.na(valeur))) NA_real_ else mean(valeur, na.rm=TRUE),
-              .groups="drop") %>%
+    summarise(valeur = if (all(is.na(valeur))) NA_real_ else mean(valeur, na.rm = TRUE), .groups = "drop") %>%
     filter(!is.na(valeur))
 
-  # --- Fusion ---
   df_long <- bind_rows(cmd, oper, protocole, prospection, anodes, epuisettes)
-
   if (nrow(df_long) == 0) return(NULL)
 
-  # --- Nouveau regroupement en facette Protocole ---
   df_long <- df_long %>%
     mutate(
-      facet_type = dplyr::recode(
-        type,
-        "Anodes"      = "Protocole",
-        "Epuisettes"  = "Protocole",
-        "Protocole"   = "Protocole",
-        "Prospection" = "Protocole",
-        .default      = type
-      ),
-      color_group = type
+      facet_type = recode(type,
+                          "Anodes" = "Protocole",
+                          "Epuisettes" = "Protocole",
+                          "Protocole" = "Protocole",
+                          "Prospection" = "Protocole",
+                          .default = type),
+      color_group = type,
+      date_label = factor(format(date_op, "%d/%m/%y"),
+                          levels = rev(unique(format(last_dates$date_op, "%d/%m/%y"))))
     )
 
-  df_long$facet_type <- factor(
-    df_long$facet_type,
-    levels=c("Commanditaire", "Opérateur", "Protocole")
-  )
-
-  df_long$date_label <- format(df_long$date_op, "%d/%m/%y")
-  df_long$date_label <- factor(df_long$date_label, levels = rev(unique(df_long$date_label)))
-
-  # --- Couleurs ---
+  # ----------------------------------------------------------------------
+  # 7) Couleurs & plot
+  # ----------------------------------------------------------------------
   cols <- c(
-    "Commanditaire"="#1f78b4",
-    "Opérateur"    ="#e31a1c",
-    "Protocole"    ="grey40",
-    "Prospection"  ="orange",
-    "Anodes"       ="#6a3d9a",
-    "Epuisettes"   ="#33a02c"
+    "Commanditaire" = "#1f78b4",
+    "Opérateur"     = "#e31a1c",
+    "Protocole"     = "grey40",
+    "Prospection"   = "orange",
+    "Anodes"        = "#6a3d9a",
+    "Epuisettes"    = "#33a02c"
   )
 
-  # --- Graphique ---
   p <- ggplot() +
-    # Facettes Commanditaire / Opérateur
+    # Acteurs
     geom_point(
-      data = df_long %>% filter(facet_type %in% c("Commanditaire","Opérateur")),
-      aes(x=date_label, y=acteur, color=color_group),
-      size=3
+      data = df_long %>% filter(facet_type %in% c("Commanditaire", "Opérateur")),
+      aes(x = date_label, y = acteur, color = color_group), size = 3
     ) +
-    # Qualitatifs du panneau Protocole
+    # Protocole / Prospection (qualitatifs)
     geom_point(
-      data = df_long %>% filter(facet_type=="Protocole" &
-                                type %in% c("Protocole","Prospection")),
-      aes(x=date_label, y=acteur, color=color_group),
-      size=3
+      data = df_long %>% filter(facet_type == "Protocole" & type %in% c("Protocole", "Prospection")),
+      aes(x = date_label, y = acteur, color = color_group), size = 3
     ) +
-    # Quantitatifs du panneau Protocole
+    # Matériel (Anodes/Epuisettes)
     geom_point(
-      data = df_long %>% filter(facet_type=="Protocole" &
-                                type %in% c("Anodes","Epuisettes")),
-      aes(x=date_label, y=acteur, color=color_group),
-      shape=21, fill="white", size=6, stroke=1.1
+      data = df_long %>% filter(facet_type == "Protocole" & type %in% c("Anodes", "Epuisettes")),
+      aes(x = date_label, y = acteur, color = color_group),
+      shape = 21, fill = "white", size = 6, stroke = 1.1
     ) +
     geom_text(
-      data = df_long %>% filter(facet_type=="Protocole" &
-                                type %in% c("Anodes","Epuisettes")),
-      aes(x=date_label, y=acteur, label=valeur, color=color_group),
-      fontface="bold", size=3
+      data = df_long %>% filter(facet_type == "Protocole" & type %in% c("Anodes", "Epuisettes")),
+      aes(x = date_label, y = acteur, label = valeur, color = color_group),
+      fontface = "bold", size = 3
     ) +
     facet_grid(
-      rows=vars(facet_type),
-      scales="free_y",
-      space="free_y",
-      switch="y"
+      rows = vars(facet_type),
+      scales = "free_y",
+      space  = "free_y",
+      switch = "y"
     ) +
-    scale_color_manual(values=cols) +
-    labs(title=titre, x="", y="") +
-    theme_bw(base_size=12) +
+    scale_color_manual(values = cols) +
+    labs(title = titre, x = "", y = "") +
+    theme_bw(base_size = 12) +
     theme(
-      legend.position="none",
-      strip.placement="outside",
-      strip.text.y.left=element_text(face="bold"),
-      axis.text.x=element_text(angle=90, vjust=0.5, hjust=1),
-      plot.title=element_text(face="bold"),
-      panel.grid.major.y=element_line(color="#dddddd"),
-      panel.spacing.y=unit(10,"pt")
+      legend.position = "none",
+      strip.placement = "outside",
+      strip.text.y.left = element_text(face = "bold"),
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+      plot.title = element_text(face = "bold"),
+      panel.grid.major.y = element_line(color = "#dddddd"),
+      panel.spacing.y = unit(10, "pt")
     )
 
   return(p)

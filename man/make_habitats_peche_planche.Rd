@@ -6,7 +6,8 @@
 \usage{
 make_habitats_peche_planche(
   yaml_path,
-  station,
+  station = NULL,
+  code_point_prelevement_aspe = NULL,
   annee_debut = 1950,
   annee_fin = as.numeric(format(Sys.Date(), "\%Y")),
   schema = "qe",

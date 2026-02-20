@@ -2,7 +2,7 @@
 % Please edit documentation in R/plot_ipr_histogram.R
 \name{plot_ipr_histogram}
 \alias{plot_ipr_histogram}
-\title{Histogramme IPR par date d'opération}
+\title{Histogramme IPR par date d'opération (sécurisé)}
 \usage{
 plot_ipr_histogram(
   yaml_path,
@@ -26,20 +26,15 @@ plot_ipr_histogram(
 
 \item{schema}{Schéma SQL (défaut "qe")}
 
-\item{title}{Titre du graphique (défaut "Notes IPR")}
+\item{title}{Titre du graphique}
 
-\item{bar_width}{Largeur relative des barres (0–1, défaut 0.9)}
+\item{bar_width}{Largeur des barres}
 
-\item{n_last}{Nombre maximum de campagnes à afficher (limite aux N dernières dates distinctes)}
+\item{n_last}{Nombre maximum de campagnes (dates distinctes)}
 }
 \value{
-Un objet \code{ggplot2}
+Un objet ggplot2
 }
 \description{
-Histogramme IPR par date d'opération
-}
-\examples{
-\dontrun{
-plot_ipr_histogram("C:/workspace/gwilenalim/yaml/config.yml", "04199200", 2000, n_last = 12)
-}
+Histogramme IPR par date d'opération (sécurisé)
 }

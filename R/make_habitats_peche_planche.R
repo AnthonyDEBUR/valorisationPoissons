@@ -24,65 +24,177 @@
 #' @export
 make_habitats_peche_planche <- function(
   yaml_path,
-  station,
+  station = NULL,
+  code_point_prelevement_aspe = NULL,
   annee_debut = 1950,
   annee_fin   = as.numeric(format(Sys.Date(), "%Y")),
-  schema     = "qe",
-  titre      = NULL,
-  sous_titre = NULL,
-  file_out   = NULL,
-  width      = 29.7 / 2.54,
-  height     = 21 / 2.54,
-  dpi        = 300,
-  n_last     = 12
+  schema      = "qe",
+  titre       = NULL,
+  sous_titre  = NULL,
+  file_out    = NULL,
+  width       = 29.7 / 2.54,
+  height      = 21 / 2.54,
+  dpi         = 300,
+  n_last      = 12
 ){
-  if (is.null(titre))      titre      <- glue::glue("{station} — Synthèse habitats")
-  if (is.null(sous_titre)) sous_titre <- glue::glue("Synthèse réalisée le {format(Sys.Date(), '%d/%m/%Y')} par Eaux & Vilaine")
-  
+  require(DBI); require(glue); require(dplyr); require(cowplot)
+
+  # ------------------------------------------------------------
+  # 1) Validation station / CPP
+  # ------------------------------------------------------------
+  is_station <- !is.null(station)
+
+  if (is_station) {
+    filtre_sql <- "s.code_station = $1"
+    join_sql   <- "JOIN {tbl_sta} s ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe"
+    param1     <- station
+  } else if (!is.null(code_point_prelevement_aspe)) {
+    # CAS CPP ORPHELIN -> PAS DE JOIN !
+    filtre_sql <- "o.code_point_prelevement_aspe = $1"
+    join_sql   <- ""     # Aucun JOIN → permet de récupérer toutes les opérations
+    param1     <- code_point_prelevement_aspe
+  } else {
+    stop("Veuillez fournir `station` OU `code_point_prelevement_aspe`.")
+  }
+
+  # ------------------------------------------------------------
+  # 2) Connexion PG
+  # ------------------------------------------------------------
+  con <- connect_pg(yaml_path)
+  on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
+
+  schema_safe <- sanitize_schema(schema)
+  tbl_sta     <- sprintf('"%s".aspe_stations',   schema_safe)
+  tbl_ops     <- sprintf('"%s".aspe_operations', schema_safe)
+
+  # ------------------------------------------------------------
+  # 3) Métadonnées pour le titre (fonctionnent même pour CPP)
+  # ------------------------------------------------------------
+  if (is_station) {
+    # Titre à partir de la station
+    meta_sql <- glue("
+      SELECT 
+        code_station, libelle_station,
+        code_point_prelevement_wama, libelle_point_prelevement_wama
+      FROM {tbl_sta} s
+      WHERE s.code_station = $1
+      LIMIT 1;
+    ")
+    meta <- DBI::dbGetQuery(con, meta_sql, params = list(param1))
+
+  } else {
+    # CPP orphelin → tentative de récupération dans aspe_stations
+    meta_sql <- glue("
+      SELECT 
+        code_station, libelle_station,
+        code_point_prelevement_wama, libelle_point_prelevement_wama
+      FROM {tbl_sta} s
+      WHERE s.code_point_prelevement_aspe = $1
+      LIMIT 1;
+    ")
+    meta <- DBI::dbGetQuery(con, meta_sql, params = list(param1))
+  }
+
+  # Construction du titre automatique
+  if (nrow(meta) == 1 && !is.na(meta$code_station) && nzchar(meta$code_station)) {
+    titre_auto <- paste0(meta$code_station, " — ", meta$libelle_station)
+  } else if (nrow(meta) == 1) {
+    titre_auto <- paste0(meta$code_point_prelevement_wama, " — ", meta$libelle_point_prelevement_wama)
+  } else {
+    titre_auto <- param1
+  }
+
+  if (is.null(titre)) {
+    titre <- glue("{titre_auto} — Synthèse habitats")
+  }
+  if (is.null(sous_titre)) {
+    sous_titre <- glue("Synthèse réalisée le {format(Sys.Date(), '%d/%m/%Y')} par Eaux & Vilaine")
+  }
+
+  # ------------------------------------------------------------
+  # 4) Sous-graphiques (station OU CPP)
+  # ------------------------------------------------------------
   graph_habitats <- plot_habitat_heatmap(
-  yaml_path    = yaml_path,
-  code_station = station,
-  annee_debut  = annee_debut,
-  annee_fin    = annee_fin,
-  n_last = n_last,
-  titre = "Habitats et caractéristiques station",
-  sous_titre =""
+    yaml_path    = yaml_path,
+    code_station = station,
+    code_point_prelevement_aspe = code_point_prelevement_aspe,
+    annee_debut  = annee_debut,
+    annee_fin    = annee_fin,
+    n_last       = n_last,
+    titre        = "Habitats et caractéristiques station",
+    sous_titre   = ""
   )
-  
-  graph_facies <- plot_facies_importance(yaml_path, 
-                                         code_station=station, 
-                                         annee_debut=annee_debut, 
-                                         annee_fin=annee_fin, 
-                                         n_last = n_last)
-  
-  graph_profond <- plot_profondeur_histogram(yaml_path, 
-                                             code_station=station, 
-                                         annee_debut=annee_debut, 
-                                         annee_fin=annee_fin, 
-                                         n_last = n_last)
-  
-    graph_surface <- plot_surface_pechee_histogram(yaml_path, 
-                                             code_station=station, 
-                                         annee_debut=annee_debut, 
-                                         annee_fin=annee_fin, 
-                                         n_last = n_last)
 
-  if (is.null(graph_habitats) && is.null(graph_facies) && 
-      is.null(graph_profond) && is.null(graph_surface)) return(NULL)
+  graph_facies <- plot_facies_importance(
+    yaml_path,
+    code_station = station,
+    code_point_prelevement_aspe = code_point_prelevement_aspe,
+    annee_debut  = annee_debut,
+    annee_fin    = annee_fin,
+    n_last       = n_last
+  )
 
+  graph_profond <- plot_profondeur_histogram(
+    yaml_path,
+    code_station = station,
+    code_point_prelevement_aspe = code_point_prelevement_aspe,
+    annee_debut  = annee_debut,
+    annee_fin    = annee_fin,
+    n_last       = n_last
+  )
+
+  graph_surface <- plot_surface_pechee_histogram(
+    yaml_path,
+    code_station = station,
+    code_point_prelevement_aspe = code_point_prelevement_aspe,
+    annee_debut  = annee_debut,
+    annee_fin    = annee_fin,
+    n_last       = n_last
+  )
+
+  # ------------------------------------------------------------
+  # 5) Si tous les graphes sont NULL → rien
+  # ------------------------------------------------------------
+  if (all(vapply(list(graph_habitats, graph_facies, graph_profond, graph_surface),
+                 is.null, logical(1)))) {
+    return(NULL)
+  }
+
+  # ------------------------------------------------------------
+  # 6) Composition de la planche
+  # ------------------------------------------------------------
   title_gg <- ggplot2::ggplot() +
     ggplot2::labs(title = titre, subtitle = sous_titre) +
     ggplot2::theme_void() +
-    ggplot2::theme(plot.title = ggplot2::element_text(size = 16, face = "bold", hjust = 0.5),
-                   plot.subtitle = ggplot2::element_text(size = 11, hjust = 0.5))
-  block_droit <- cowplot::plot_grid(graph_facies, graph_profond, graph_surface, nrow = 3)
-  block_graphs <- cowplot::plot_grid(graph_habitats, block_droit, nrow = 1, rel_widths = c(3, 1))
-  planche      <- cowplot::plot_grid(title_gg, block_graphs, nrow = 2, rel_heights = c(0.4, 3))
+    ggplot2::theme(
+      plot.title    = ggplot2::element_text(size = 16, face = "bold", hjust = 0.5),
+      plot.subtitle = ggplot2::element_text(size = 11, hjust = 0.5)
+    )
+
+  block_droit <- cowplot::plot_grid(
+    graph_facies, graph_profond, graph_surface,
+    nrow = 3
+  )
+
+  block_graphs <- cowplot::plot_grid(
+    graph_habitats, block_droit,
+    nrow = 1, rel_widths = c(3, 1)
+  )
+
+  planche <- cowplot::plot_grid(
+    title_gg, block_graphs,
+    nrow = 2, rel_heights = c(0.4, 3)
+  )
 
   if (!is.null(file_out)) {
-    cowplot::save_plot(filename = file_out, plot = planche, base_width = width, base_height = height, dpi = dpi, bg = "white")
+    cowplot::save_plot(
+      file_out, planche,
+      base_width = width, base_height = height,
+      dpi = dpi, bg = "white"
+    )
   }
-  planche
+
+  return(planche)
 }
 
 

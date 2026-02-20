@@ -56,107 +56,96 @@
 #'
 #' @export
 plot_profondeur_histogram <- function(
-    yaml_path,
-    code_station = NULL,
-    code_point_prelevement_aspe = NULL,
-    annee_debut = 1950,
-    annee_fin = as.integer(format(Sys.Date(), "%Y")),
-    n_last = 10,
-    titre = "Prof. moy. station (m)"
+  yaml_path,
+  code_station = NULL,
+  code_point_prelevement_aspe = NULL,
+  annee_debut = 1950,
+  annee_fin   = as.integer(format(Sys.Date(), "%Y")),
+  n_last      = 10,
+  titre       = "Prof. moy. station (m)",
+  schema      = "qe"
 ){
-    library(DBI)
-    library(dplyr)
-    library(ggplot2)
-    library(lubridate)
+  library(DBI)
+  library(dplyr)
+  library(ggplot2)
+  library(lubridate)
+  library(glue)
 
-    
-    # Gestion des paramètres code_station / code_point_prelevement_aspe
-    
+  # --------------------------------------------------------------------
+  # 1) Validation des paramètres
+  # --------------------------------------------------------------------
+  if (!is.null(code_station) && !is.null(code_point_prelevement_aspe)) {
+    warning("Les deux paramètres sont fournis : priorité au code_station.")
+  }
 
-    if (!is.null(code_station) & !is.null(code_point_prelevement_aspe)) {
-        warning("Les deux paramètres code_station et code_point_prelevement_aspe sont fournis. 
-                Le code_station sera utilisé en priorité.")
-    }
+  use_station <- !is.null(code_station)
 
-    # Choix du filtre
-    use_station <- !is.null(code_station)
+  # --------------------------------------------------------------------
+  # 2) Connexion et sécurisation
+  # --------------------------------------------------------------------
+  con <- connect_pg(yaml_path)
+  on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    
-    # Connexion PG depuis YAML
-    
-     con <- connect_pg(yaml_path)
-    on.exit(DBI::dbDisconnect(con))
+  schema_safe <- sanitize_schema(schema)
+  tbl_ops <- sprintf('"%s".aspe_operations', schema_safe)
+  tbl_sta <- sprintf('"%s".aspe_stations', schema_safe)
 
-    
-    # Construction de la requête SQL
-    
+  # --------------------------------------------------------------------
+  # 3) Logique station / CPP — CPP = PAS DE JOIN !
+  # --------------------------------------------------------------------
+  if (use_station) {
+    join_sql   <- glue("LEFT JOIN {tbl_sta} s ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe")
+    filtre_sql <- "s.code_station = $1"
+    param1     <- code_station
+  } else {
+    join_sql   <- ""   # CPP orphelin → surtout AUCUN JOIN
+    filtre_sql <- "o.code_point_prelevement_aspe = $1"
+    param1     <- code_point_prelevement_aspe
+  }
 
-if (use_station) {
-    # → On filtre via aspe_stations puis on rejoint les opérations
-    sql <- glue::glue("
-        SELECT
-            s.code_station,
-            o.date_operation::date AS date_op,
-            o.profondeur::float AS profondeur
-        FROM qe.aspe_operations o
-        LEFT JOIN qe.aspe_stations s
-            ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
-        WHERE s.code_station = '{code_station}'
-          AND EXTRACT(YEAR FROM o.date_operation::date) BETWEEN {annee_debut} AND {annee_fin}
-          AND o.profondeur IS NOT NULL
-        ORDER BY date_op DESC
-    ")
+  # --------------------------------------------------------------------
+  # 4) Requête SQL sécurisée CPP‑proof
+  # --------------------------------------------------------------------
+  sql <- glue("
+    SELECT
+      o.date_operation::date AS date_op,
+      o.profondeur::float    AS profondeur
+    FROM {tbl_ops} o
+    {join_sql}
+    WHERE {filtre_sql}
+      AND EXTRACT(YEAR FROM o.date_operation::date) BETWEEN $2 AND $3
+      AND o.profondeur IS NOT NULL
+    ORDER BY date_op DESC;
+  ")
 
-} else {
-    # → Recherche directe sur le point ASPE
-    sql <- glue::glue("
-        SELECT
-            s.code_station,
-            o.date_operation::date AS date_op,
-            o.profondeur::float AS profondeur
-        FROM qe.aspe_operations o
-        LEFT JOIN qe.aspe_stations s
-            ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
-        WHERE o.code_point_prelevement_aspe = '{code_point_prelevement_aspe}'
-          AND EXTRACT(YEAR FROM o.date_operation) BETWEEN {annee_debut} AND {annee_fin}
-          AND o.profondeur IS NOT NULL
-        ORDER BY date_op DESC
-    ")
-}
+  df <- DBI::dbGetQuery(con, sql, params = list(param1, annee_debut, annee_fin))
 
-    df <- DBI::dbGetQuery(con, sql)
+  if (nrow(df) == 0) {
+    message("Aucune profondeur disponible pour les critères fournis.")
+    return(NULL)
+  }
 
-    if (nrow(df) == 0) {
-        message("Aucune profondeur disponible pour les critères fournis.")
-        return(NULL)
-    }
+  # --------------------------------------------------------------------
+  # 5) n dernières dates uniques
+  # --------------------------------------------------------------------
+  df <- df %>%
+    distinct(date_op, .keep_all = TRUE) %>%
+    arrange(desc(date_op)) %>%
+    slice(1:n_last) %>%
+    arrange(date_op)
 
-    
-    # Sélection des n dernières opérations à date unique
-    
-    df <- df %>%
-        distinct(date_op, .keep_all = TRUE) %>%
-        arrange(desc(date_op)) %>%
-        slice(1:n_last) %>%
-        arrange(date_op)
+  df$date_label <- factor(format(df$date_op, "%d/%m/%y"),
+                          levels = format(df$date_op, "%d/%m/%y"))
 
-    # Facteur date formatée
-    df$date_label <- format(df$date_op, "%d/%m/%y")
-    df$date_label <- factor(df$date_label, levels = df$date_label)
-
-    
-    # Graphique
-    
-    p <- ggplot(df, aes(x = date_label, y = profondeur)) +
-        geom_col(fill = "grey30") +
-        labs(title = titre,
-             x = "",
-             y = "") +
-        theme_bw(base_size = 12) +
-        theme(
-            axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
-            plot.title = element_text(face = "bold")
-        )
-
-    return(p)
+  # --------------------------------------------------------------------
+  # 6) Graphique
+  # --------------------------------------------------------------------
+  ggplot(df, aes(x = date_label, y = profondeur)) +
+    geom_col(fill = "grey30") +
+    labs(title = titre, x = "", y = "") +
+    theme_bw(base_size = 12) +
+    theme(
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+      plot.title  = element_text(face = "bold")
+    )
 }

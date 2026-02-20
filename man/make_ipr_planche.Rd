@@ -35,26 +35,17 @@ make_ipr_planche(
 
 \item{titre}{Titre principal (défaut: "\if{html}{\out{<station>}} — Synthèse IPR")}
 
-\item{sous_titre}{Sous-titre (défaut: "Synthèse réalisée le \if{html}{\out{<date>}} par Eaux & Vilaine")}
+\item{sous_titre}{Sous-titre}
 
-\item{file_out}{Chemin de sauvegarde (PNG) si non NULL}
+\item{file_out}{Fichier PNG en sortie}
 
-\item{width}{Largeur (pouces), défaut A4 paysage}
+\item{width, height, dpi}{Format du PNG}
 
-\item{height}{Hauteur (pouces), défaut A4 paysage}
-
-\item{dpi}{DPI pour l'export}
-
-\item{n_last}{Nombre maximum de campagnes affichées}
+\item{n_last}{Nombre d'opérations (dates distinctes)}
 }
 \value{
-Un objet \code{ggplot} (composé avec \code{cowplot})
+Un ggplot/cowplot ou NULL
 }
 \description{
 Planche synthèse IPR (notes, effectifs, métriques)
-}
-\examples{
-\dontrun{
-make_ipr_planche(".../config.yml", "04216050", annee_debut = 2000, n_last = 12)
-}
 }

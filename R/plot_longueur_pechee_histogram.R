@@ -118,7 +118,7 @@ if (use_station) {
         LEFT JOIN qe.aspe_stations s
             ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
         WHERE o.code_point_prelevement_aspe = '{code_point_prelevement_aspe}'
-          AND EXTRACT(YEAR FROM o.date_operation) BETWEEN {annee_debut} AND {annee_fin}
+          AND EXTRACT(YEAR FROM o.date_operation::date) BETWEEN {annee_debut} AND {annee_fin}
           AND o.longueur IS NOT NULL
         ORDER BY date_op DESC
     ")

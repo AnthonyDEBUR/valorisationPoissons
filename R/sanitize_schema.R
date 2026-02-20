@@ -3,7 +3,7 @@
 #' Nettoyer un nom de schéma SQL (A–Z a–z 0–9 _)
 #'
 #' @param schema Chaîne de caractères
-#' @return Chaîne nettoyée contenant uniquement `[A-Za-z0-9_]`
+#' @return Chaîne nettoyée contenant uniquement : A–Z, a–z, 0–9 et _
 #' @keywords internal
 #' @noRd
 #' @export 

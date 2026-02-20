@@ -32,20 +32,27 @@ plot_ipr_metrics <- function(
   indicateurs = c("DII","DIO","DIT","DTI","NEL","NER","NTE"),
   annee_debut   = 1970,
   annee_fin     = as.numeric(format(Sys.Date(), "%Y")),
-  schema       = "qe",
-  table        = "aspe_ipr",
+  schema        = "qe",
+  table         = "aspe_ipr",
   n_lignes_facets = 2,
-  show_labels  = FALSE,
-  label_digits = 1,
-  label_big_mark = " ",
+  show_labels   = FALSE,
+  label_digits  = 1,
+  label_big_mark     = " ",
   label_decimal_mark = ",",
-  label_size   = 3.2,
+  label_size    = 3.2,
   label_fontface = "plain",
-  n_last       = 12,
-  return_data  = FALSE
+  n_last        = 12,
+  return_data   = FALSE
 ){
+  require(DBI); require(glue); require(dplyr)
+  require(ggplot2); require(stringr)
+
+  # --------------------------------------------------------------------
+  # 1) Validation des indicateurs
+  # --------------------------------------------------------------------
   autorises <- c("DII","DIO","DIT","DTI","NEL","NER","NTE")
   indicateurs <- toupper(indicateurs)
+
   if (any(!indicateurs %in% autorises)) {
     stop(glue::glue(
       "Indicateur(s) invalide(s): {paste(setdiff(indicateurs, autorises), collapse=', ')}. ",
@@ -53,67 +60,91 @@ plot_ipr_metrics <- function(
     ), call. = FALSE)
   }
 
+  # --------------------------------------------------------------------
+  # 2) Connexion & sécurisation du schéma + table
+  # --------------------------------------------------------------------
   con <- connect_pg(yaml_path)
   on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
   schema_safe <- sanitize_schema(schema)
-  schema_q <- DBI::dbQuoteIdentifier(con, schema_safe)
-  table_q  <- DBI::dbQuoteIdentifier(con, table)
+  table_safe  <- sanitize_schema(table)
 
+  tbl_full <- sprintf('"%s"."%s"', schema_safe, table_safe)
+
+  # --------------------------------------------------------------------
+  # 3) Préparer la liste des libellés cibles (Obs / Modélisé)
+  # --------------------------------------------------------------------
+  # Exemple :
+  #   indicateurs = c("NEL","NER") → c("NEL","NER","NEL_obs","NER_obs")
   libpars_cibles <- sort(unique(c(indicateurs, paste0(indicateurs, "_obs"))))
+
+  # Quotation sécurisée (SQL string literals)
   lib_in <- paste(DBI::dbQuoteString(con, libpars_cibles), collapse = ", ")
 
+  # --------------------------------------------------------------------
+  # 4) Requête SQL 100% sécurisée, sans concaténation
+  # --------------------------------------------------------------------
   sql <- glue::glue("
-    SELECT date, lib_par, resultat
-    FROM {schema_q}.{table_q}
+    SELECT 
+      date,
+      lib_par,
+      resultat
+    FROM {tbl_full}
     WHERE code_station = $1
       AND EXTRACT(YEAR FROM date) BETWEEN $2 AND $3
       AND lib_par IN ({lib_in})
     ORDER BY date ASC;
   ")
 
-  df <- DBI::dbGetQuery(con, sql, params = list(station, as.integer(annee_debut), as.integer(annee_fin)))
+  df <- DBI::dbGetQuery(
+    con, sql,
+    params = list(station, as.integer(annee_debut), as.integer(annee_fin))
+  )
   if (!nrow(df)) return(NULL)
 
-  df_plot <- df |>
-    dplyr::mutate(
-      type     = dplyr::if_else(stringr::str_detect(lib_par, "_obs$"), "Observé", "Modélisé"),
-      metrique = stringr::str_replace(lib_par, "_obs$", ""),
+  # --------------------------------------------------------------------
+  # 5) Préparation des données
+  # --------------------------------------------------------------------
+  df_plot <- df %>%
+    mutate(
+      type     = if_else(str_detect(lib_par, "_obs$"), "Observé", "Modélisé"),
+      metrique = str_replace(lib_par, "_obs$", ""),
       date     = as.Date(date),
       date_lab = format(date, "%d/%m/%y")
-    ) |>
-    dplyr::arrange(date) |>
-    dplyr::group_by(date, date_lab, metrique, type) |>
-    dplyr::summarise(valeur = dplyr::first(resultat), .groups = "drop") |>
-    dplyr::filter(metrique %in% indicateurs)
+    ) %>%
+    arrange(date) %>%
+    group_by(date, date_lab, metrique, type) %>%
+    summarise(valeur = first(resultat), .groups="drop") %>%
+    filter(metrique %in% indicateurs)
 
+  # --------------------------------------------------------------------
+  # 6) Limiter aux n dernières dates distinctes
+  # --------------------------------------------------------------------
   if (!is.null(n_last) && is.finite(n_last) && n_last > 0) {
-    last_dates <- df_plot |>
-      dplyr::distinct(date) |>
-      dplyr::arrange(dplyr::desc(date)) |>
-      dplyr::slice(1:n_last) |>
-      dplyr::pull(date)
-    df_plot <- df_plot |>
-      dplyr::filter(date %in% last_dates) |>
-      dplyr::arrange(date)
-    lvl_x <- df_plot |>
-      dplyr::distinct(date, date_lab) |>
-      dplyr::arrange(date) |>
-      dplyr::pull(date_lab)
-    df_plot <- df_plot |>
-      dplyr::mutate(date_lab = factor(date_lab, levels = unique(lvl_x)))
-  } else {
-    lvl_x <- df_plot |>
-      dplyr::distinct(date, date_lab) |>
-      dplyr::arrange(date) |>
-      dplyr::pull(date_lab)
-    df_plot <- df_plot |>
-      dplyr::mutate(date_lab = factor(date_lab, levels = unique(lvl_x)))
+    last_dates <- df_plot %>%
+      distinct(date) %>%
+      arrange(desc(date)) %>%
+      slice(1:n_last) %>%
+      pull(date)
+
+    df_plot <- df_plot %>% filter(date %in% last_dates) %>% arrange(date)
   }
 
-  df_plot <- df_plot |>
-    dplyr::mutate(metrique = factor(metrique, levels = indicateurs))
+  # Ordre chronologique final
+  lvl_x <- df_plot %>%
+    distinct(date, date_lab) %>%
+    arrange(date) %>%
+    pull(date_lab)
 
+  df_plot <- df_plot %>%
+    mutate(
+      date_lab = factor(date_lab, levels = unique(lvl_x)),
+      metrique = factor(metrique, levels = indicateurs)
+    )
+
+  # --------------------------------------------------------------------
+  # 7) Labels métiers
+  # --------------------------------------------------------------------
   labels_metriques <- c(
     "NER" = "nb d'esp. rhéophiles",
     "NEL" = "nb d'esp. lithophiles",
@@ -124,32 +155,58 @@ plot_ipr_metrics <- function(
     "DTI" = "densité totale d'ind."
   )
 
-  p <- ggplot2::ggplot(df_plot, ggplot2::aes(x = date_lab, y = valeur, fill = type)) +
-    ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.8), colour = "black", width = 0.75) +
-    ggplot2::scale_fill_manual(name = NULL, values = c("Observé" = "grey60", "Modélisé" = "white"), drop = FALSE) +
-    ggplot2::facet_wrap(~ metrique, nrow = n_lignes_facets, scales = "free_y",
-                        labeller = ggplot2::labeller(metrique = labels_metriques)) +
-    ggplot2::labs(title = "Métriques IPR", x = "", y = "") +
-    ggplot2::theme_bw(base_size = 12) +
-    ggplot2::theme(legend.position = "bottom",
-                   axis.text.x = ggplot2::element_text(angle = 90, hjust = 1),
-                   panel.grid.minor = ggplot2::element_blank(),
-                   strip.background = ggplot2::element_rect(fill = "grey95", colour = "grey70")) +
-    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.02, 0.15)))
+  # --------------------------------------------------------------------
+  # 8) Graphique final
+  # --------------------------------------------------------------------
+  p <- ggplot2::ggplot(df_plot, aes(x = date_lab, y = valeur, fill = type)) +
+    geom_col(
+      position = position_dodge(width = 0.8),
+      colour = "black", width = 0.75
+    ) +
+    scale_fill_manual(
+      name = NULL,
+      values = c("Observé" = "grey60", "Modélisé" = "white"),
+      drop   = FALSE
+    ) +
+    facet_wrap(
+      ~ metrique,
+      nrow = n_lignes_facets,
+      scales = "free_y",
+      labeller = labeller(metrique = labels_metriques)
+    ) +
+    labs(title = "Métriques IPR", x = "", y = "") +
+    theme_bw(base_size = 12) +
+    theme(
+      legend.position = "bottom",
+      axis.text.x = element_text(angle = 90, hjust = 1),
+      panel.grid.minor = element_blank(),
+      strip.background = element_rect(fill = "grey95", colour = "grey70")
+    ) +
+    scale_y_continuous(expand = expansion(mult = c(0.02, 0.15)))
 
+  # --------------------------------------------------------------------
+  # 9) Labels numériques facultatifs
+  # --------------------------------------------------------------------
   if (isTRUE(show_labels)) {
     fmt_fun <- scales::number_format(
-      accuracy = if (label_digits > 0) 10^-label_digits else 1,
-      big.mark = label_big_mark,
+      accuracy     = if (label_digits > 0) 10^-label_digits else 1,
+      big.mark     = label_big_mark,
       decimal.mark = label_decimal_mark,
       trim = TRUE
     )
-    p <- p + ggplot2::geom_text(
-      ggplot2::aes(label = fmt_fun(valeur)),
-      position = ggplot2::position_dodge(width = 0.8),
-      vjust = -0.4, size = label_size, fontface = label_fontface
+
+    p <- p + geom_text(
+      aes(label = fmt_fun(valeur)),
+      position = position_dodge(width = 0.8),
+      vjust = -0.4,
+      size = label_size,
+      fontface = label_fontface
     )
   }
-  if (isTRUE(return_data)) list(plot = p, data = df_plot) else p
+
+  if (isTRUE(return_data))
+    return(list(plot = p, data = df_plot))
+
+  return(p)
 }
 

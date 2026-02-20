@@ -11,7 +11,8 @@ plot_surface_pechee_histogram(
   annee_debut = 1950,
   annee_fin = as.integer(format(Sys.Date(), "\%Y")),
   n_last = 10,
-  titre = "Surface pêchée en m²"
+  titre = "Surface pêchée en m²",
+  schema = "qe"
 )
 }
 \arguments{

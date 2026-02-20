@@ -2,11 +2,12 @@
 % Please edit documentation in R/make_operations_peche_planche.R
 \name{make_operations_peche_planche}
 \alias{make_operations_peche_planche}
-\title{Planche synthèse opération pêches électriques (protocole, puissance, ...)}
+\title{Planche synthèse opération pêches électriques (protocole, puissance, ...) — station OU CPP}
 \usage{
 make_operations_peche_planche(
   yaml_path,
-  station,
+  station = NULL,
+  code_point_prelevement_aspe = NULL,
   annee_debut = 1950,
   annee_fin = as.numeric(format(Sys.Date(), "\%Y")),
   schema = "qe",
@@ -22,7 +23,9 @@ make_operations_peche_planche(
 \arguments{
 \item{yaml_path}{Chemin du YAML de connexion}
 
-\item{station}{Code Sandre}
+\item{station}{Code Sandre (ou NULL si CPP fourni)}
+
+\item{code_point_prelevement_aspe}{Code du point ASPE (ou NULL si station fourni)}
 
 \item{annee_debut}{Année de début (défaut 1950)}
 
@@ -30,9 +33,9 @@ make_operations_peche_planche(
 
 \item{schema}{Schéma SQL (défaut "qe")}
 
-\item{titre}{Titre principal (défaut: "\if{html}{\out{<station>}} — Synthèse opérations")}
+\item{titre}{Titre principal (défaut auto : "CODE — LIBELLÉ — Synthèse opérations de pêche" ou WAMA)}
 
-\item{sous_titre}{Sous-titre (défaut: "synthèse générée le \if{html}{\out{<date>}} par Eaux & Vilaine")}
+\item{sous_titre}{Sous-titre (défaut: "Synthèse réalisée le \if{html}{\out{<date>}} par Eaux & Vilaine")}
 
 \item{file_out}{Chemin de sauvegarde (PNG) si non NULL}
 
@@ -42,16 +45,11 @@ make_operations_peche_planche(
 
 \item{dpi}{DPI pour l'export}
 
-\item{n_last}{Nombre maximum de campagnes affichées}
+\item{n_last}{Nombre maximum de campagnes affichées (par dates distinctes)}
 }
 \value{
-Un objet \code{ggplot} (composé avec \code{cowplot})
+Un objet \code{ggplot} (composé avec \code{cowplot}) ou NULL si aucune sous-figure disponible
 }
 \description{
-Planche synthèse opération pêches électriques (protocole, puissance, ...)
-}
-\examples{
-\dontrun{
-make_operations_peche_planche(".../config.yml", "04216050", annee_debut = 2000, n_last = 12)
-}
+Planche synthèse opération pêches électriques (protocole, puissance, ...) — station OU CPP
 }

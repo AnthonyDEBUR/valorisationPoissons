@@ -2,11 +2,12 @@
 % Please edit documentation in R/plot_effectifs_histogram.R
 \name{plot_effectifs_histogram}
 \alias{plot_effectifs_histogram}
-\title{Histogramme des effectifs par date/passage}
+\title{Histogramme des effectifs par date/passage (station OU CPP)}
 \usage{
 plot_effectifs_histogram(
   yaml_path,
-  station,
+  station = NULL,
+  code_point_prelevement_aspe = NULL,
   annee_debut,
   annee_fin = as.numeric(format(Sys.Date(), "\%Y")),
   schema = "qe",
@@ -18,28 +19,25 @@ plot_effectifs_histogram(
 \arguments{
 \item{yaml_path}{Chemin du YAML de connexion Postgres}
 
-\item{station}{Code Sandre de la station}
+\item{station}{Code Sandre de la station (ou NULL si CPP)}
+
+\item{code_point_prelevement_aspe}{Code ASPE du point de prélèvement (ou NULL si station)}
 
 \item{annee_debut}{Année de début}
 
-\item{annee_fin}{Année de fin (défaut = année courante)}
+\item{annee_fin}{Année de fin}
 
-\item{schema}{Schéma SQL (défaut "qe")}
+\item{schema}{Schéma SQL}
 
-\item{bar_width}{Largeur des barres (défaut 0.9)}
+\item{bar_width}{Largeur des barres}
 
-\item{only_with_ipr}{TRUE pour ne garder que les opérations ayant un IPR}
+\item{only_with_ipr}{TRUE = ne garder que les opérations ayant un IPR}
 
-\item{n_last}{Nombre maximum de campagnes à afficher (par dates distinctes)}
+\item{n_last}{Nombre de campagnes distinctes à afficher}
 }
 \value{
-Un objet \code{ggplot2}
+ggplot2 ou NULL
 }
 \description{
-Histogramme des effectifs par date/passage
-}
-\examples{
-\dontrun{
-plot_effectifs_histogram(".../config.yml", "04199200", 2000, only_with_ipr = TRUE)
-}
+Histogramme des effectifs par date/passage (station OU CPP)
 }

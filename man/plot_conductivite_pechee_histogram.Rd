@@ -11,7 +11,8 @@ plot_conductivite_pechee_histogram(
   annee_debut = 1950,
   annee_fin = as.integer(format(Sys.Date(), "\%Y")),
   n_last = 10,
-  titre = "Conductivité (µS/cm)"
+  titre = "Conductivité (µS/cm)",
+  schema = "qe"
 )
 }
 \arguments{
