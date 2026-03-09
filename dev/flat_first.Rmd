@@ -3276,7 +3276,7 @@ info_titres <- .aspe_fetch_meta_and_titles(
     schema = schema %||% "qe",
     station = code_station,
     code_point_prelevement_aspe = code_point_prelevement_aspe,
-    default_title_suffix = " — Effectifs capturés par opération",
+    default_title_suffix = "\nEffectifs capturés par opération",
     default_subtitle_prefix = "Synthèse réalisée le "
   )
 
