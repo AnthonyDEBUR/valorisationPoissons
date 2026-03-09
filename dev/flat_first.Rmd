@@ -927,8 +927,8 @@ if (is.null(sous_titre)) {
   # --------------------------------------------------------------------
   # 2) Connexion & sécurisation schéma
   # --------------------------------------------------------------------
-  con <- connect_pg(yaml_path)
-  on.exit(try(DBI::dbDisconnect(con), silent=TRUE), add=TRUE)
+  # con <- connect_pg(yaml_path)
+  # on.exit(try(DBI::dbDisconnect(con), silent=TRUE), add=TRUE)
 
   schema_safe <- sanitize_schema(schema)
   tbl_ipr <- sprintf('"%s".aspe_ipr',       schema_safe)
@@ -3250,19 +3250,8 @@ plot_faune_heatmap <- function(
 ){
 
   # ---- Connexion PG ----
-  y <- yaml::read_yaml(yaml_path)
-  y$port        <- y$port        %||% 5432
-  y$sslmode     <- y$sslmode     %||% "prefer"
-  y$search_path <- y$search_path %||% "qe,public"
-
-  con <- DBI::dbConnect(
-    RPostgres::Postgres(),
-    dbname = y$dbname, host = y$host, port = y$port,
-    user = y$user, password = y$password,
-    sslmode = y$sslmode,
-    options = sprintf("-c search_path=%s", y$search_path)
-  )
-  on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
+con <- connect_pg(yaml_path)
+on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
   # ---- Filtre station vs point ----
   if (!is.null(code_station)) {
@@ -4040,17 +4029,6 @@ if (is.null(sous_titre)) {
   sous_titre <- info_titres$sous_titre_auto
 }
 
-  
-  
-  # --- Connexion
-  y <- yaml::read_yaml(yaml_path)
-  con <- DBI::dbConnect(
-    RPostgres::Postgres(),
-    dbname=y$dbname, host=y$host, port=y$port %||% 5432,
-    user=y$user, password=y$password,
-    options=sprintf("-c search_path=%s,public", schema)
-  )
-  on.exit(try(DBI::dbDisconnect(con), silent=TRUE), add=TRUE)
 
   # --- Récupération opérations IPR
   sql <- sprintf("

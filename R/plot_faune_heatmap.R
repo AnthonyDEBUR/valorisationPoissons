@@ -38,19 +38,8 @@ plot_faune_heatmap <- function(
 ){
 
   # ---- Connexion PG ----
-  y <- yaml::read_yaml(yaml_path)
-  y$port        <- y$port        %||% 5432
-  y$sslmode     <- y$sslmode     %||% "prefer"
-  y$search_path <- y$search_path %||% "qe,public"
-
-  con <- DBI::dbConnect(
-    RPostgres::Postgres(),
-    dbname = y$dbname, host = y$host, port = y$port,
-    user = y$user, password = y$password,
-    sslmode = y$sslmode,
-    options = sprintf("-c search_path=%s", y$search_path)
-  )
-  on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
+con <- connect_pg(yaml_path)
+on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
   # ---- Filtre station vs point ----
   if (!is.null(code_station)) {

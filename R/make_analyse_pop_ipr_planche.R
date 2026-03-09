@@ -117,17 +117,6 @@ if (is.null(sous_titre)) {
   sous_titre <- info_titres$sous_titre_auto
 }
 
-  
-  
-  # --- Connexion
-  y <- yaml::read_yaml(yaml_path)
-  con <- DBI::dbConnect(
-    RPostgres::Postgres(),
-    dbname=y$dbname, host=y$host, port=y$port %||% 5432,
-    user=y$user, password=y$password,
-    options=sprintf("-c search_path=%s,public", schema)
-  )
-  on.exit(try(DBI::dbDisconnect(con), silent=TRUE), add=TRUE)
 
   # --- Récupération opérations IPR
   sql <- sprintf("

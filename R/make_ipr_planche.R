@@ -67,8 +67,8 @@ if (is.null(sous_titre)) {
   # --------------------------------------------------------------------
   # 2) Connexion & sécurisation schéma
   # --------------------------------------------------------------------
-  con <- connect_pg(yaml_path)
-  on.exit(try(DBI::dbDisconnect(con), silent=TRUE), add=TRUE)
+  # con <- connect_pg(yaml_path)
+  # on.exit(try(DBI::dbDisconnect(con), silent=TRUE), add=TRUE)
 
   schema_safe <- sanitize_schema(schema)
   tbl_ipr <- sprintf('"%s".aspe_ipr',       schema_safe)
