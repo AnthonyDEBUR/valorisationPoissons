@@ -11,6 +11,7 @@ make_analyse_pop_IPR_planche(
   annee_fin = as.numeric(format(Sys.Date(), "\%Y")),
   schema = "qe",
   titre = NULL,
+  sous_titre = NULL,
   file_out = NULL,
   width = 29.7/2.54,
   height = 21/2.54,
@@ -35,7 +36,10 @@ Par défaut : année courante.}
 \item{schema}{Nom du schéma PostgreSQL contenant les tables ASPE.
 Par défaut : \code{"qe"}.}
 
-\item{titre}{Sous titre de la planche.
+\item{titre}{Titre principal de la planche.
+Par défaut : NULL.}
+
+\item{sous_titre}{Sous titre de la planche.
 Par défaut : NULL.}
 
 \item{file_out}{Chemin d’enregistrement (PNG).

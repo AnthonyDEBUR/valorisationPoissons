@@ -3953,7 +3953,7 @@ ipr_heatmap_3x3 <- function(
 #'   Par défaut : `"qe"`.
 #' @param titre Titre principal de la planche.  
 #'   Par défaut : NULL.
-#' @param titre Sous titre de la planche.  
+#' @param sous_titre Sous titre de la planche.  
 #'   Par défaut : NULL.
 #' @param file_out Chemin d’enregistrement (PNG).  
 #'   Si `NULL`, aucun fichier n’est enregistré.
@@ -4009,6 +4009,7 @@ make_analyse_pop_IPR_planche <- function(
   annee_fin   = as.numeric(format(Sys.Date(), "%Y")),
   schema      = "qe",
   titre       = NULL,
+  sous_titre=NULL,
   file_out    = NULL,
   width = 29.7/2.54,
   height = 21/2.54,
