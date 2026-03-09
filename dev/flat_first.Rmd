@@ -1275,11 +1275,14 @@ plot_habitat_heatmap <- function(
 
   p +
     scale_x_discrete(drop=FALSE) +
+        labs(title=titre, subtitle=sous_titre) +
     theme_bw(base_size=13) +
     theme(axis.text.x=element_text(angle=90,hjust=1),
           axis.title=element_blank(),
-          panel.grid=element_line(color="grey95")) +
-    labs(title=titre, subtitle=sous_titre)
+          panel.grid=element_line(color="grey95"),
+         plot.title    = element_text(size = 11, face = "bold"),  
+        plot.subtitle = element_text(size = 10)) 
+
 }
 
 ```
