@@ -37,11 +37,33 @@ make_ipr_planche <- function(
   # --------------------------------------------------------------------
   # 1) Titre automatique
   # --------------------------------------------------------------------
-  if (is.null(titre)) 
-    titre <- glue::glue("{station} — Synthèse IPR")
-  if (is.null(sous_titre))
-    sous_titre <- glue::glue("Synthèse réalisée le {format(Sys.Date(), '%d/%m/%Y')} par Eaux & Vilaine")
+  # if (is.null(titre)) 
+  #   titre <- glue::glue("{station} — Synthèse IPR")
+  # if (is.null(sous_titre))
+  #   sous_titre <- glue::glue("Synthèse réalisée le {format(Sys.Date(), '%d/%m/%Y')} par Eaux & Vilaine")
 
+  # Connexion
+con <- connect_pg(yaml_path)
+on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
+
+# Récup meta + titres auto si manquants (comme habitats)
+info_titres <- .aspe_fetch_meta_and_titles(
+  con = con,
+  schema = schema %||% "qe",
+  station = station,
+  code_point_prelevement_aspe = NULL,  # IPR = station-based
+  default_title_suffix = " — Synthèse IPR",
+  default_subtitle_prefix = "Synthèse réalisée le "
+)
+
+if (is.null(titre)) {
+  titre <- info_titres$titre_auto
+}
+if (is.null(sous_titre)) {
+  sous_titre <- info_titres$sous_titre_auto
+}
+  
+  
   # --------------------------------------------------------------------
   # 2) Connexion & sécurisation schéma
   # --------------------------------------------------------------------

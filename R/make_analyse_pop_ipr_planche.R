@@ -29,7 +29,9 @@
 #' @param schema Nom du schéma PostgreSQL contenant les tables ASPE.
 #'   Par défaut : `"qe"`.
 #' @param titre Titre principal de la planche.  
-#'   Par défaut : `"Effectif pêché vs attendu par IPR"`.
+#'   Par défaut : NULL.
+#' @param titre Sous titre de la planche.  
+#'   Par défaut : NULL.
 #' @param file_out Chemin d’enregistrement (PNG).  
 #'   Si `NULL`, aucun fichier n’est enregistré.
 #' @param width Largeur de la figure en pouces.  
@@ -83,7 +85,7 @@ make_analyse_pop_IPR_planche <- function(
   annee_debut = 1950,
   annee_fin   = as.numeric(format(Sys.Date(), "%Y")),
   schema      = "qe",
-  titre       = "Effectif pêché vs attendu par IPR",
+  titre       = NULL,
   file_out    = NULL,
   width = 29.7/2.54,
   height = 21/2.54,
@@ -93,6 +95,29 @@ make_analyse_pop_IPR_planche <- function(
 ){
   `%||%` <- function(x,y) if (!is.null(x)) x else y
 
+  # titres automatiques
+  con <- connect_pg(yaml_path)
+on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
+
+
+info_titres <- .aspe_fetch_meta_and_titles(
+  con = con,
+  schema = schema %||% "qe",
+  station = station,
+  code_point_prelevement_aspe = NULL,  # analyse IPR = station-based
+  default_title_suffix = " — Effectifs pêchés vs attendus (IPR)",
+  default_subtitle_prefix = "Synthèse réalisée le "
+)
+
+if (is.null(titre)) {
+  titre <- info_titres$titre_auto
+}
+if (is.null(sous_titre)) {
+  sous_titre <- info_titres$sous_titre_auto
+}
+
+  
+  
   # --- Connexion
   y <- yaml::read_yaml(yaml_path)
   con <- DBI::dbConnect(
@@ -196,7 +221,7 @@ make_analyse_pop_IPR_planche <- function(
 
   # --- Titre général
   title_gg <- ggplot2::ggplot() +
-    ggplot2::labs(title=titre) +
+    ggplot2::labs(title=titre, subtitle = sous_titre) +
     ggplot2::theme_void() +
     ggplot2::theme(
       plot.title=ggplot2::element_text(size=16, face="bold", hjust=0.5)

@@ -65,9 +65,23 @@ plot_faune_heatmap <- function(
   }
 
   # Titre par défaut si non fourni
+
+info_titres <- .aspe_fetch_meta_and_titles(
+    con = con,
+    schema = schema,
+    station = code_station,
+    code_point_prelevement_aspe = code_point_prelevement_aspe,
+    default_title_suffix = " — Effectifs capturés par opération",
+    default_subtitle_prefix = "Synthèse réalisée le "
+  )
+
   if (is.null(titre)) {
-    titre <- sprintf("Effectifs - %s", code_defaut)
+    titre <- info_titres$titre_auto
   }
+  if (is.null(sous_titre)) {
+    sous_titre <- info_titres$sous_titre_auto
+  }
+
 
   # ---- Requête SQL ----
   sql <- sprintf("

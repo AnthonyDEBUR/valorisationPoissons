@@ -10,7 +10,7 @@ make_analyse_pop_IPR_planche(
   annee_debut = 1950,
   annee_fin = as.numeric(format(Sys.Date(), "\%Y")),
   schema = "qe",
-  titre = "Effectif pêché vs attendu par IPR",
+  titre = NULL,
   file_out = NULL,
   width = 29.7/2.54,
   height = 21/2.54,
@@ -35,8 +35,8 @@ Par défaut : année courante.}
 \item{schema}{Nom du schéma PostgreSQL contenant les tables ASPE.
 Par défaut : \code{"qe"}.}
 
-\item{titre}{Titre principal de la planche.
-Par défaut : \code{"Effectif pêché vs attendu par IPR"}.}
+\item{titre}{Sous titre de la planche.
+Par défaut : NULL.}
 
 \item{file_out}{Chemin d’enregistrement (PNG).
 Si \code{NULL}, aucun fichier n’est enregistré.}
