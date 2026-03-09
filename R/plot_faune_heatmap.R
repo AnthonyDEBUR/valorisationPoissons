@@ -21,6 +21,7 @@
 #' @export
 plot_faune_heatmap <- function(
   yaml_path,
+  schema = "qe",
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
   annee_debut = 1950,
@@ -68,7 +69,7 @@ plot_faune_heatmap <- function(
 
 info_titres <- .aspe_fetch_meta_and_titles(
     con = con,
-    schema = schema,
+    schema = schema %||% "qe",
     station = code_station,
     code_point_prelevement_aspe = code_point_prelevement_aspe,
     default_title_suffix = " — Effectifs capturés par opération",

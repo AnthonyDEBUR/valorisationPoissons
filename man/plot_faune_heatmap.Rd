@@ -6,6 +6,7 @@
 \usage{
 plot_faune_heatmap(
   yaml_path,
+  schema = "qe",
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
   annee_debut = 1950,
