@@ -111,6 +111,69 @@ If it is the first time you use {fusen}, after 'description', you can directly r
 <h3 id="connect_pg">connect_pg<a class="anchor" aria-label="anchor" href="#connect_pg"></a>
 </h3>
 </div>
+<div class="section level3">
+<h3 id="définit-titre-graph">définit titre graph<a class="anchor" aria-label="anchor" href="#d%C3%A9finit-titre-graph"></a>
+</h3>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co">#' @keywords internal</span></span>
+<span><span class="va">.aspe_fetch_meta_and_titles</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">con</span>, <span class="va">schema</span> <span class="op">=</span> <span class="st">"qe"</span>,</span>
+<span>                                       <span class="va">station</span> <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>                                       <span class="va">code_point_prelevement_aspe</span> <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>                                       <span class="va">default_title_suffix</span> <span class="op">=</span> <span class="st">""</span>,</span>
+<span>                                       <span class="va">default_subtitle_prefix</span> <span class="op">=</span> <span class="st">"Synthèse réalisée le "</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">schema_safe</span> <span class="op">&lt;-</span> <span class="fu">sanitize_schema</span><span class="op">(</span><span class="va">schema</span><span class="op">)</span></span>
+<span>  <span class="va">tbl_sta</span>     <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">'"%s".aspe_stations'</span>, <span class="va">schema_safe</span><span class="op">)</span></span>
+<span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">station</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">meta_sql</span> <span class="op">&lt;-</span> <span class="fu">glue</span><span class="fu">::</span><span class="fu"><a href="https://glue.tidyverse.org/reference/glue.html" class="external-link">glue</a></span><span class="op">(</span><span class="st">"</span></span>
+<span><span class="st">      SELECT </span></span>
+<span><span class="st">        code_station, libelle_station,</span></span>
+<span><span class="st">        code_point_prelevement_wama, libelle_point_prelevement_wama</span></span>
+<span><span class="st">      FROM {tbl_sta} s</span></span>
+<span><span class="st">      WHERE s.code_station = $1</span></span>
+<span><span class="st">      LIMIT 1;</span></span>
+<span><span class="st">    "</span><span class="op">)</span></span>
+<span>    <span class="va">meta</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu">dbGetQuery</span><span class="op">(</span><span class="va">con</span>, <span class="va">meta_sql</span>, params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">station</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="op">}</span> <span class="kw">else</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">code_point_prelevement_aspe</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">meta_sql</span> <span class="op">&lt;-</span> <span class="fu">glue</span><span class="fu">::</span><span class="fu"><a href="https://glue.tidyverse.org/reference/glue.html" class="external-link">glue</a></span><span class="op">(</span><span class="st">"</span></span>
+<span><span class="st">      SELECT </span></span>
+<span><span class="st">        code_station, libelle_station,</span></span>
+<span><span class="st">        code_point_prelevement_wama, libelle_point_prelevement_wama</span></span>
+<span><span class="st">      FROM {tbl_sta} s</span></span>
+<span><span class="st">      WHERE s.code_point_prelevement_aspe = $1</span></span>
+<span><span class="st">      LIMIT 1;</span></span>
+<span><span class="st">    "</span><span class="op">)</span></span>
+<span>    <span class="va">meta</span> <span class="op">&lt;-</span> <span class="fu">DBI</span><span class="fu">::</span><span class="fu">dbGetQuery</span><span class="op">(</span><span class="va">con</span>, <span class="va">meta_sql</span>, params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">code_point_prelevement_aspe</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
+<span>    <span class="va">meta</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span></span>
+<span>  <span class="co"># Titre auto</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">meta</span><span class="op">)</span> <span class="op">==</span> <span class="fl">1</span> <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">meta</span><span class="op">$</span><span class="va">code_station</span><span class="op">)</span> <span class="op">&amp;&amp;</span> <span class="fu"><a href="https://rdrr.io/r/base/nchar.html" class="external-link">nzchar</a></span><span class="op">(</span><span class="va">meta</span><span class="op">$</span><span class="va">code_station</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">titre_auto</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">meta</span><span class="op">$</span><span class="va">code_station</span>, <span class="st">" — "</span>, <span class="va">meta</span><span class="op">$</span><span class="va">libelle_station</span><span class="op">)</span></span>
+<span>  <span class="op">}</span> <span class="kw">else</span> <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">meta</span><span class="op">)</span> <span class="op">==</span> <span class="fl">1</span> <span class="op">&amp;&amp;</span></span>
+<span>             <span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NA.html" class="external-link">is.na</a></span><span class="op">(</span><span class="va">meta</span><span class="op">$</span><span class="va">code_point_prelevement_wama</span><span class="op">)</span> <span class="op">&amp;&amp;</span> <span class="fu"><a href="https://rdrr.io/r/base/nchar.html" class="external-link">nzchar</a></span><span class="op">(</span><span class="va">meta</span><span class="op">$</span><span class="va">code_point_prelevement_wama</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">titre_auto</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">meta</span><span class="op">$</span><span class="va">code_point_prelevement_wama</span>, <span class="st">" — "</span>, <span class="va">meta</span><span class="op">$</span><span class="va">libelle_point_prelevement_wama</span><span class="op">)</span></span>
+<span>  <span class="op">}</span> <span class="kw">else</span> <span class="op">{</span></span>
+<span>    <span class="va">titre_auto</span> <span class="op">&lt;-</span> <span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/NULL.html" class="external-link">is.null</a></span><span class="op">(</span><span class="va">station</span><span class="op">)</span><span class="op">)</span> <span class="va">station</span> <span class="kw">else</span> <span class="va">code_point_prelevement_aspe</span></span>
+<span>  <span class="op">}</span></span>
+<span></span>
+<span>  <span class="co"># Suffix éventuel (ex: " — Synthèse IPR")</span></span>
+<span>  <span class="kw">if</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nchar.html" class="external-link">nzchar</a></span><span class="op">(</span><span class="va">default_title_suffix</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>    <span class="va">titre_auto</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">titre_auto</span>, <span class="va">default_title_suffix</span><span class="op">)</span></span>
+<span>  <span class="op">}</span></span>
+<span></span>
+<span>  <span class="va">sous_titre_auto</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="va">default_subtitle_prefix</span>,</span>
+<span>                            <span class="fu"><a href="https://rdrr.io/r/base/format.html" class="external-link">format</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date</a></span><span class="op">(</span><span class="op">)</span>, <span class="st">"%d/%m/%Y"</span><span class="op">)</span>,</span>
+<span>                            <span class="st">" par Eaux &amp; Vilaine"</span><span class="op">)</span></span>
+<span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    meta <span class="op">=</span> <span class="va">meta</span>,</span>
+<span>    titre_auto <span class="op">=</span> <span class="va">titre_auto</span>,</span>
+<span>    sous_titre_auto <span class="op">=</span> <span class="va">sous_titre_auto</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">}</span></span></code></pre></div>
+</div>
 </div>
 <div class="section level2">
 <h2 id="plot-histogram-ipr">Plot histogram IPR<a class="anchor" aria-label="anchor" href="#plot-histogram-ipr"></a>
@@ -119,7 +182,7 @@ If it is the first time you use {fusen}, after 'description', you can directly r
 <div class="section level2">
 <h2 id="histogramme-des-effectifs-par-date-passage">Histogramme des effectifs par date / passage<a class="anchor" aria-label="anchor" href="#histogramme-des-effectifs-par-date-passage"></a>
 </h2>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="co">#' Histogramme des effectifs par date/passage (station OU CPP)</span></span>
 <span><span class="co">#'</span></span>
