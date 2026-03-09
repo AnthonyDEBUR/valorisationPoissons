@@ -95,8 +95,10 @@ connect_pg <- function(yaml_path) {
 
 
 ## définit titre graph
-```{r}
+```{r function}
 #' @keywords internal
+#' @noRd
+#' @export
 .aspe_fetch_meta_and_titles <- function(con, schema = "qe",
                                        station = NULL,
                                        code_point_prelevement_aspe = NULL,

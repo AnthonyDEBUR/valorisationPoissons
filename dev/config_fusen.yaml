@@ -5,6 +5,7 @@ flat_first.Rmd:
   - R/.R
   - R/sanitize_schema.R
   - R/connect_pg.R
+  - R/aspe_fetch_meta_and_titles.R
   - R/plot_ipr_histogram.R
   - R/plot_effectifs_histogram.R
   - R/plot_ipr_metrics.R

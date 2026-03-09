@@ -39,67 +39,6 @@ If it is the first time you use {fusen}, after 'description', you can directly r
 
 
 ## définit titre graph
-```{r}
-#' @keywords internal
-.aspe_fetch_meta_and_titles <- function(con, schema = "qe",
-                                       station = NULL,
-                                       code_point_prelevement_aspe = NULL,
-                                       default_title_suffix = "",
-                                       default_subtitle_prefix = "Synthèse réalisée le ") {
-  schema_safe <- sanitize_schema(schema)
-  tbl_sta     <- sprintf('"%s".aspe_stations', schema_safe)
-
-  if (!is.null(station)) {
-    meta_sql <- glue::glue("
-      SELECT 
-        code_station, libelle_station,
-        code_point_prelevement_wama, libelle_point_prelevement_wama
-      FROM {tbl_sta} s
-      WHERE s.code_station = $1
-      LIMIT 1;
-    ")
-    meta <- DBI::dbGetQuery(con, meta_sql, params = list(station))
-  } else if (!is.null(code_point_prelevement_aspe)) {
-    meta_sql <- glue::glue("
-      SELECT 
-        code_station, libelle_station,
-        code_point_prelevement_wama, libelle_point_prelevement_wama
-      FROM {tbl_sta} s
-      WHERE s.code_point_prelevement_aspe = $1
-      LIMIT 1;
-    ")
-    meta <- DBI::dbGetQuery(con, meta_sql, params = list(code_point_prelevement_aspe))
-  } else {
-    meta <- data.frame()
-  }
-
-  # Titre auto
-  if (nrow(meta) == 1 && !is.na(meta$code_station) && nzchar(meta$code_station)) {
-    titre_auto <- paste0(meta$code_station, " — ", meta$libelle_station)
-  } else if (nrow(meta) == 1 &&
-             !is.na(meta$code_point_prelevement_wama) && nzchar(meta$code_point_prelevement_wama)) {
-    titre_auto <- paste0(meta$code_point_prelevement_wama, " — ", meta$libelle_point_prelevement_wama)
-  } else {
-    titre_auto <- if (!is.null(station)) station else code_point_prelevement_aspe
-  }
-
-  # Suffix éventuel (ex: " — Synthèse IPR")
-  if (nzchar(default_title_suffix)) {
-    titre_auto <- paste0(titre_auto, default_title_suffix)
-  }
-
-  sous_titre_auto <- paste0(default_subtitle_prefix,
-                            format(Sys.Date(), "%d/%m/%Y"),
-                            " par Eaux & Vilaine")
-
-  list(
-    meta = meta,
-    titre_auto = titre_auto,
-    sous_titre_auto = sous_titre_auto
-  )
-}
-```
-
 
 
 
