@@ -3,15 +3,17 @@
 #' Histogramme IPR par date d'opération (sécurisé)
 #'
 #' @param yaml_path Chemin du YAML de connexion Postgres
-#' @param station Code Sandre de la station (ex. "04199200")
+#' @param station Code Sandre de la station
 #' @param annee_debut Année de début
-#' @param annee_fin Année de fin (défaut = année courante)
-#' @param schema Schéma SQL (défaut "qe")
+#' @param annee_fin Année de fin
+#' @param schema Schéma SQL
 #' @param title Titre du graphique
 #' @param bar_width Largeur des barres
-#' @param n_last Nombre maximum de campagnes (dates distinctes)
+#' @param n_last Nombre max de campagnes
+#' @param exclure_typologies Vecteur des typologies d'opérations à exclure
+#'        (défaut = "Incorrecte", les autres typologies sont "Incertaine",
+#'        "Non qualifié" et "Correcte")
 #'
-#' @return Un objet ggplot2
 #' @export
 plot_ipr_histogram <- function(
   yaml_path,
@@ -21,23 +23,24 @@ plot_ipr_histogram <- function(
   schema     = "qe",
   title      = "Notes IPR",
   bar_width  = 0.9,
-  n_last     = 12
+  n_last     = 12,
+  exclure_typologies = c("Incorrecte")
 ){
   require(DBI); require(glue); require(dplyr); require(ggplot2)
 
-  # --------------------------------------------------------------------
-  # 1) Connexion & sécurisation schéma
-  # --------------------------------------------------------------------
+
+  # 1) Connexion
+
   con <- connect_pg(yaml_path)
   on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
   schema_safe <- sanitize_schema(schema)
-  tbl_ipr  <- sprintf('"%s".aspe_ipr',        schema_safe)
+  tbl_ipr  <- sprintf('"%s".aspe_ippr',        schema_safe)
   tbl_ops  <- sprintf('"%s".aspe_operations', schema_safe)
 
-  # --------------------------------------------------------------------
-  # 2) Requête SQL propre, sécurisée, sans concaténation dangereuse
-  # --------------------------------------------------------------------
+
+  # 2) Requête SQL avec exclusion typologies
+
   sql <- glue::glue("
     WITH ipr_explicit AS (
       SELECT
@@ -67,34 +70,37 @@ plot_ipr_histogram <- function(
       ON op.code_operation = e.code_operation
     WHERE EXTRACT(YEAR FROM op.date_operation::timestamptz)
           BETWEEN $2 AND $3
+      AND NOT (op.libelle_qualification_operation = ANY($4))
     ORDER BY date_op;
   ")
 
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(station, as.integer(annee_debut), as.integer(annee_fin))
+    params = list(
+      station,
+      as.integer(annee_debut),
+      as.integer(annee_fin),
+      exclure_typologies          # ← transmission du vecteur
+    )
   )
 
   if (!nrow(df)) return(invisible(NULL))
 
-  # --------------------------------------------------------------------
-  # 3) Préparation données
-  # --------------------------------------------------------------------
+
+  # 3) Préparation & graphique (inchangé)
+
   df$date_op    <- as.Date(df$date_op)
   df$label_date <- format(df$date_op, "%d/%m/%y")
 
-  # Limiter aux n dernières dates distinctes
   if (!is.null(n_last) && is.finite(n_last) && n_last > 0) {
     last_dates <- unique(df$date_op[order(df$date_op, decreasing = TRUE)])[1:n_last]
     df <- df[df$date_op %in% last_dates, , drop = FALSE]
   }
 
-  # Ordre chronologique
   levels_x <- unique(df$label_date[order(df$date_op)])
   df$label_date <- factor(df$label_date, levels = levels_x, ordered = TRUE)
 
-  # Facteur classes
   levels_classes <- c("Très bon","Bon","Moyen","Médiocre","Mauvais","Valeur manquante")
   df$classe <- factor(df$classe, levels = levels_classes, ordered = TRUE)
 
@@ -107,28 +113,15 @@ plot_ipr_histogram <- function(
     "Valeur manquante" = "grey70"
   )
 
-  # --------------------------------------------------------------------
-  # 4) Graphique
-  # --------------------------------------------------------------------
-  ggplot2::ggplot(df, ggplot2::aes(x = label_date, y = ipr, fill = classe)) +
-    ggplot2::geom_col(width = bar_width, color = "black", linewidth = 0.4) +
-    ggplot2::scale_fill_manual(
-      values = palette,
-      limits = levels_classes,
-      breaks = levels_classes,
-      drop   = FALSE,
-      name   = "Classe de\nqualité"
-    ) +
-    ggplot2::geom_hline(
-      yintercept = c(5,16,25,36),
-      linetype   = "dashed",
-      color      = "grey40",
-      linewidth  = 0.3
-    ) +
-    ggplot2::labs(title = title, x = NULL, y = NULL) +
-    ggplot2::theme_bw(base_size = 12) +
-    ggplot2::theme(
-      panel.grid.minor = ggplot2::element_blank(),
-      axis.text.x      = ggplot2::element_text(angle = 90, hjust = 1)
+  ggplot(df, aes(x = label_date, y = ipr, fill = classe)) +
+    geom_col(width = bar_width, color = "black", linewidth = 0.4) +
+    scale_fill_manual(values = palette, limits = levels_classes, drop = FALSE) +
+    geom_hline(yintercept = c(5,16,25,36), linetype = "dashed", color = "grey40") +
+    labs(title = title, x = NULL, y = NULL) +
+    theme_bw(base_size = 12) +
+    theme(
+      panel.grid.minor = element_blank(),
+      axis.text.x      = element_text(angle = 90, hjust = 1)
     )
 }
+

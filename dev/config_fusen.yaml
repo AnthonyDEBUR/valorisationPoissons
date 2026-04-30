@@ -11,7 +11,7 @@ flat_first.Rmd:
   - R/plot_ipr_metrics.R
   - R/make_ipr_planche.R
   - R/plot_habitat_heatmap.R
-  - R/plot_facies_importance.R
+  - R/plot_facies_profondeur_histogram.R
   - R/plot_profondeur_histogram.R
   - R/plot_surface_pechee_histogram.R
   - R/plot_longueur_pechee_histogram.R
@@ -23,7 +23,7 @@ flat_first.Rmd:
   - R/make_operations_peche_planche.R
   - R/graph_descriptif_operation.R
   - R/plot_faune_heatmap.R
-  - R/plot_facies_profondeur_histogram.R
+  - R/plot_facies_profondeur_histogram_provisoire.R
   - R/ipr_heatmap_3x3.R
   - R/make_analyse_pop_ipr_planche.R
   - R/regroupe_taxons_ipr.R

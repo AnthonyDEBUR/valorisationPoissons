@@ -2,7 +2,7 @@
 % Please edit documentation in R/plot_habitat_heatmap.R
 \name{plot_habitat_heatmap}
 \alias{plot_habitat_heatmap}
-\title{Heatmap des conditions / habitats (présences, abondances, hydrologie) — station OU CPP}
+\title{Heatmap des conditions / habitats (présences, abondances, hydrologie)}
 \usage{
 plot_habitat_heatmap(
   yaml_path,
@@ -19,39 +19,54 @@ plot_habitat_heatmap(
     "#003300"),
   hydro_colors = c(`Bas/Faible` = "#99FFFF", `Moyen/Stable` = "#0066CC", `Haut/Fort` =
     "#084594"),
-  schema = "qe"
+  schema = "qe",
+  exclure_typologies = c("Incorrecte")
 )
 }
 \arguments{
-\item{yaml_path}{Chemin YAML (connexion PG)}
+\item{yaml_path}{Chemin vers le fichier YAML de connexion PostgreSQL.}
 
-\item{code_station}{Code Sandre de la station (ou NULL si \code{code_point_prelevement_aspe} fourni)}
+\item{code_station}{Code Sandre de la station (ou \code{NULL} si CPP).}
 
-\item{code_point_prelevement_aspe}{Code du point ASPE (ou NULL si \code{code_station} fourni)}
+\item{code_point_prelevement_aspe}{Code du point de prélèvement ASPE (ou \code{NULL} si station).}
 
-\item{titre}{Titre personnalisé ; si NULL, construit automatiquement (CODE — LIBELLÉ station, ou WAMA)}
+\item{titre}{Titre personnalisé ; si \code{NULL}, il est construit automatiquement.}
 
-\item{sous_titre}{Sous-titre (ex: période) ; "" pour rien}
+\item{sous_titre}{Sous‑titre ; si \code{NULL}, il est généré automatiquement.}
 
-\item{annee_debut}{Année de début (défaut 1950)}
+\item{annee_debut}{Année de début (défaut 1950).}
 
-\item{annee_fin}{Année de fin (défaut = année courante)}
+\item{annee_fin}{Année de fin (défaut = année courante).}
 
-\item{n_last}{Nombre d'opérations affichées (dates distinctes)}
+\item{n_last}{Nombre de dates (opérations) à conserver (défaut: 12).}
 
-\item{dot_size}{Taille des points}
+\item{dot_size}{Taille des points.}
 
-\item{dot_stroke}{Épaisseur du trait}
+\item{dot_stroke}{Épaisseur du trait des points.}
 
-\item{abond_colors}{Couleurs des classes d'abondance}
+\item{abond_colors}{Palette des classes d'abondance.}
 
-\item{hydro_colors}{Couleurs des classes hydrologiques}
+\item{hydro_colors}{Palette des classes hydrologiques.}
 
-\item{schema}{Schéma SQL (défaut "qe")}
+\item{schema}{Schéma SQL (défaut \code{"qe"}).}
+
+\item{exclure_typologies}{Vecteur des typologies d'opération à exclure
+(défaut = \code{"Incorrecte"}).}
 }
 \value{
-Un objet \code{ggplot2} (ou \code{NULL} si aucune donnée)
+Un objet ggplot2 représentant la heatmap (ou \code{NULL} si aucune donnée).
 }
 \description{
-Heatmap des conditions / habitats (présences, abondances, hydrologie) — station OU CPP
+Produit une heatmap synthétique des habitats à partir des données
+d'opérations ASPE, avec filtrage des typologies d'opération
+(\code{libelle_qualification_operation}) via \code{exclure_typologies}.
+}
+\details{
+La fonction gère automatiquement :
+\itemize{
+\item le mode station (code Sandre) ou CPP (code ASPE),
+\item les métadonnées pour construire le titre et le sous‑titre,
+\item la sélection des n dernières dates (distinctes),
+\item la catégorisation des valeurs : présence, abondance, hydrologie.
+}
 }

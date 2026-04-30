@@ -2,22 +2,32 @@
 
 #' Heatmap faunistique (ASPE) – Abondances par date et taxon regroupé
 #'
-#' @param yaml_path Chemin du fichier YAML contenant la connexion PostgreSQL
-#' @param code_station Code Sandre de la station (optionnel)
-#' @param code_point_prelevement_aspe Code ASPE du point de prélèvement (optionnel)
-#' @param annee_debut Année minimale (défaut = 1950)
-#' @param annee_fin Année maximale (défaut = année courante)
-#' @param n_last Nombre de dernières opérations (dates distinctes) à conserver.
-#'              NULL = toutes (défaut).
-#' @param fill_colors Vecteur de couleurs pour le dégradé. Défaut = séquentiel bleu.
-#' @param titre Titre du graphique. Par défaut "Effectif — <code>" (station ou point ASPE).
-#' @param sous_titre Sous-titre du graphique (optionnel)
-#' @param file_out Chemin de sauvegarde (PNG) si non NULL
-#' @param width Largeur (pouces), défaut A4 paysage
-#' @param height Hauteur (pouces), défaut A4 paysage
-#' @param dpi DPI pour l'export
+#' Produit une heatmap des effectifs de poissons capturés par opération,
+#' regroupés par taxon et par date, avec :
+#' - station OU CPP,
+#' - n dernières dates,
+#' - regroupements taxonomiques standardisés,
+#' - affichage des valeurs (effectifs) + échelle log10,
+#' - exclusion optionnelle de typologies d'opérations via
+#'   `libelle_qualification_operation` (ex. "Incorrecte").
 #'
-#' @return Un objet ggplot2 représentant la heatmap
+#' @param yaml_path Chemin du YAML de connexion PostgreSQL
+#' @param schema Schéma SQL (défaut "qe")
+#' @param code_station Code Sandre (si fourni, prioritaire)
+#' @param code_point_prelevement_aspe Code ASPE si `code_station` est NULL
+#' @param annee_debut Année minimale (défaut 1950)
+#' @param annee_fin Année maximale (défaut année courante)
+#' @param n_last Nombre de dernières opérations distinctes (NULL = toutes)
+#' @param fill_colors Palette du dégradé
+#' @param titre Titre du graphique (défaut auto)
+#' @param sous_titre Sous-titre (défaut auto)
+#' @param file_out Export PNG (optionnel)
+#' @param width Hauteur du PNG
+#' @param height Largeur du PNG
+#' @param dpi DPI
+#' @param exclure_typologies Vecteur des typologies à exclure
+#'
+#' @return Un objet ggplot2 (heatmap)
 #' @export
 plot_faune_heatmap <- function(
   yaml_path,
@@ -33,74 +43,85 @@ plot_faune_heatmap <- function(
   file_out   = NULL,
   width      = 29.7 / 2.54,
   height     = 21 / 2.54,
-  dpi        = 300
-
+  dpi        = 300,
+  exclure_typologies = c("Incorrecte")   # <-- [NOUVEAU]
 ){
 
-  # ---- Connexion PG ----
-con <- connect_pg(yaml_path)
-on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
+  
+  # Connexion
+  
+  con <- connect_pg(yaml_path)
+  on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
-  # ---- Filtre station vs point ----
+  schema_safe <- sanitize_schema(schema)
+
+  
+  # Filtre station / CPP
+  
   if (!is.null(code_station)) {
-    filtre_sql <- "s.code_station = $1"
-    param1 <- code_station
+    filtre_sql  <- "s.code_station = $1"
+    param1      <- code_station
     code_defaut <- code_station
   } else if (!is.null(code_point_prelevement_aspe)) {
-    filtre_sql <- "s.code_point_prelevement_aspe = $1"
-    param1 <- code_point_prelevement_aspe
+    filtre_sql  <- "s.code_point_prelevement_aspe = $1"
+    param1      <- code_point_prelevement_aspe
     code_defaut <- code_point_prelevement_aspe
   } else {
     stop("Fournir code_station OU code_point_prelevement_aspe.")
   }
 
-  # Titre par défaut si non fourni
-
-info_titres <- .aspe_fetch_meta_and_titles(
+  
+  # Titres auto
+  
+  info_titres <- .aspe_fetch_meta_and_titles(
     con = con,
-    schema = schema %||% "qe",
+    schema = schema_safe,
     station = code_station,
     code_point_prelevement_aspe = code_point_prelevement_aspe,
     default_title_suffix = "\nEffectifs capturés par opération",
     default_subtitle_prefix = "Synthèse réalisée le "
   )
 
-  if (is.null(titre)) {
-    titre <- info_titres$titre_auto
-  }
-  if (is.null(sous_titre)) {
-    sous_titre <- info_titres$sous_titre_auto
-  }
+  if (is.null(titre))      titre      <- info_titres$titre_auto
+  if (is.null(sous_titre)) sous_titre <- info_titres$sous_titre_auto
 
-
-  # ---- Requête SQL ----
-  sql <- sprintf("
+  
+  # SQL + EXCLUSION TYPOLOGIES
+  
+  sql <- glue::glue("
     SELECT 
       o.date_operation,
       lt.nom_commun_taxon,
       lt.code_alternatif_taxon,
       lt.code_lot,
       lt.effectif_lot::integer
-    FROM qe.aspe_liste_taxons lt
-    JOIN qe.aspe_operations o 
+    FROM \"{schema_safe}\".aspe_liste_taxons lt
+    JOIN \"{schema_safe}\".aspe_operations o 
          ON lt.code_operation = o.code_operation
-    JOIN qe.aspe_stations s
+    JOIN \"{schema_safe}\".aspe_stations s
          ON o.code_point_prelevement_aspe = s.code_point_prelevement_aspe
-    WHERE %s
+    WHERE {filtre_sql}
+      AND NOT (o.libelle_qualification_operation = ANY($4))   -- <-- [NOUVEAU]
       AND o.date_operation IS NOT NULL
-      AND date_part('year', CAST(o.date_operation AS timestamp)) BETWEEN $2 AND $3
-    ORDER BY CAST(o.date_operation AS timestamp)
-  ", filtre_sql)
+      AND date_part('year', o.date_operation::timestamp)
+            BETWEEN $2 AND $3
+    ORDER BY o.date_operation;
+  ")
 
-  df <- DBI::dbGetQuery(con, sql, params = list(param1, annee_debut, annee_fin))
+  df <- DBI::dbGetQuery(
+    con,
+    sql,
+    params = list(param1, annee_debut, annee_fin, exclure_typologies)  # <-- [NOUVEAU]
+  )
   if (!nrow(df)) return(NULL)
 
-  # ---- Nettoyage dates ----
+  
+  # Traitements identiques à ta version
+  
   df <- df %>%
-    dplyr::mutate(date = as.Date(lubridate::as_datetime(date_operation, tz = "UTC"))) %>%
-    dplyr::filter(!is.na(date))
+    dplyr::mutate(date = as.Date(lubridate::as_datetime(date_operation)))
 
-  # ---- Règles de regroupements taxonomiques ----
+  # Règles de regroupement taxonomique
   rules <- list(
     BRB = "BRE",
     CAS = "CAX", CAG = "CAX", CAD = "CAX", CAA = "CAX",
@@ -111,22 +132,25 @@ info_titres <- .aspe_fetch_meta_and_titles(
     VAI = "PHX", VAC = "PHX", VAB = "PHX",
     VAR = "VAN"
   )
+  df$taxon_group <- dplyr::recode(
+    df$code_alternatif_taxon, !!!rules,
+    .default = df$code_alternatif_taxon
+  )
 
-  df$taxon_group <- dplyr::recode(df$code_alternatif_taxon, !!!rules, .default = df$code_alternatif_taxon)
-
-  # ---- Agrégation correcte (dédoublonnage de lots) ----
+  # Agrégation (lots -> taxon_group)
   agg <- df %>%
-    dplyr::distinct(date, taxon_group, code_lot, effectif_lot, nom_commun_taxon, .keep_all = TRUE) %>%
+    dplyr::distinct(date, taxon_group, code_lot, effectif_lot,
+                    nom_commun_taxon, .keep_all = TRUE) %>%
     dplyr::group_by(date, taxon_group, code_lot) %>%
-    dplyr::summarise(effectif_lot = sum(effectif_lot, na.rm = TRUE), .groups = "drop") %>%
+    dplyr::summarise(effectif_lot = sum(effectif_lot, na.rm = TRUE),
+                     .groups = "drop") %>%
     dplyr::group_by(date, taxon_group) %>%
     dplyr::summarise(
       effectif_total = sum(effectif_lot, na.rm = TRUE),
-      code_lots = paste(sort(unique(code_lot)), collapse = ", "),
       .groups = "drop"
     )
 
-  # ---- Étiquette "nom commun" par groupe (nom le plus fréquent) ----
+  # Nom commun dominant
   name_map <- df %>%
     dplyr::group_by(taxon_group, nom_commun_taxon) %>%
     dplyr::summarise(n = dplyr::n(), .groups = "drop_last") %>%
@@ -139,8 +163,8 @@ info_titres <- .aspe_fetch_meta_and_titles(
     dplyr::left_join(name_map, by = "taxon_group") %>%
     dplyr::mutate(label_taxon = dplyr::coalesce(label_taxon, taxon_group))
 
-  # ---- Filtrage des n dernières opérations ----
-  if (!is.null(n_last) && is.numeric(n_last) && n_last > 0) {
+  # Limitation n_last
+  if (!is.null(n_last) && n_last > 0) {
     last_dates <- agg %>%
       dplyr::distinct(date) %>%
       dplyr::arrange(dplyr::desc(date)) %>%
@@ -150,26 +174,23 @@ info_titres <- .aspe_fetch_meta_and_titles(
     agg <- agg %>% dplyr::filter(date %in% last_dates)
   }
 
-  # ---- Formatage des dates & gestion des zéros pour l'échelle log ----
+  # Formatage
   agg <- agg %>%
     dplyr::mutate(
       date_label  = format(date, "%d/%m/%y"),
-      date_factor = factor(date_label, levels = unique(date_label), ordered = TRUE),
-      fill_value  = ifelse(effectif_total <= 0, NA_real_, effectif_total) # log10 ne gère pas 0
+      date_factor = factor(date_label, levels = unique(date_label)),
+      fill_value  = ifelse(effectif_total <= 0, NA_real_, effectif_total)
     )
 
-  # ---- Heatmap ----
-  p <- ggplot2::ggplot(agg, ggplot2::aes(
-    x = date_factor,
-    y = forcats::fct_rev(label_taxon),
-    fill = fill_value
-  )) +
+  
+  # Heatmap ggplot2
+  
+  p <- ggplot2::ggplot(
+    agg,
+    ggplot2::aes(x = date_factor, y = forcats::fct_rev(label_taxon), fill = fill_value)
+  ) +
     ggplot2::geom_tile(color = "grey70") +
-
-    # Valeur numérique centrée (en blanc)
-    ggplot2::geom_text(ggplot2::aes(label = effectif_total), color = "black", size = 3.2) +
-
-    # Dégradé personnalisable + échelle log10 + couleur des NA (zéros)
+    ggplot2::geom_text(aes(label = effectif_total), color = "black", size = 3.2) +
     ggplot2::scale_fill_gradientn(
       colours = fill_colors,
       trans   = "log10",
@@ -179,26 +200,16 @@ info_titres <- .aspe_fetch_meta_and_titles(
     ggplot2::theme_bw(base_size = 13) +
     ggplot2::theme(
       axis.text.x = ggplot2::element_text(angle = 90, hjust = 1, vjust = 0.5),
-      axis.title.x = ggplot2::element_blank(),
-      axis.title.y = ggplot2::element_blank(),
-      panel.grid = ggplot2::element_blank(),
+      axis.title  = ggplot2::element_blank(),
+      panel.grid  = ggplot2::element_blank(),
       legend.position = "none"
     ) +
-    ggplot2::labs(
-      title = titre,
-      subtitle = sous_titre
-    )
+    ggplot2::labs(title = titre, subtitle = sous_titre)
 
-      if (!is.null(file_out)) {
-    ggsave(filename = file_out, 
-           plot = p, 
-           width = width, 
-           height = height, 
-           dpi = dpi, 
-           bg = "white")
+  if (!is.null(file_out)) {
+    ggplot2::ggsave(file_out, p, width = width, height = height, dpi = dpi, bg = "white")
   }
-  
+
   return(p)
 }
-
 

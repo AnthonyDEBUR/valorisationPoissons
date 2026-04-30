@@ -2,80 +2,33 @@
 
 #' Histogramme des profondeurs par faciès (ASPE)
 #'
-#'NE FONCTIONNE PAS CAR BUG SOUS HUBEAU
+#' Cette fonction extrait les profondeurs moyennes de faciès
+#' (`facies_profondeur_moyenne`) et les types de faciès (`facies_libelle_type`)
+#' depuis `aspe_operations`, pour une station ou un point ASPE.
 #'
-#' Cette fonction interroge la base ASPE via un fichier YAML de connexion
-#' et extrait les champs \code{facies_profondeur_moyenne} et 
-#' \code{facies_libelle_type} issus de la table \code{qe.aspe_operations}.
+#' Elle nettoie les chaînes (retrait du préfixe "\\x", découpages, normalisation
+#' des noms de faciès) puis met en correspondance profondeurs et faciès.
 #'
-#' Les profondeurs moyennes de faciès (\code{facies_profondeur_moyenne})
-#' sont nettoyées en supprimant le préfixe \code{"\\x"}, puis scindées
-#' en profondeur(s) unitaires en coupant avant chaque point, conformément
-#' au format observé (par ex. \code{"\\x0.097.19"} devient \code{c("0.09","7.19")}).
+#' Le filtrage tient compte :
+#' - du code station ou CPP,
+#' - d’un intervalle d’années,
+#' - des `n_last` dernières opérations distinctes,
+#' - des typologies d’opérations à exclure (`libelle_qualification_operation`).
 #'
-#' Les libellés de faciès (\code{facies_libelle_type}) sont également 
-#' nettoyés (suppression des espaces, de \code{"\\x"}, puis découpage 
-#' sur les lettres majuscules). Tous les faciès dont l'intitulé correspond 
-#' à une forme de “Profond” (ex. \emph{Profonds}, \emph{Profonde}, 
-#' \emph{ProfondeS}) sont harmonisés en \code{"Profond"}.
+#' Le résultat est un histogramme où chaque date affiche une ou plusieurs barres
+#' (position dodge), avec une couleur par type de faciès.
 #'
-#' Après association entre profondeurs et faciès pour chaque date, la
-#' fonction génère un histogramme où chaque date comporte autant de 
-#' barres que de faciès présents. Les couleurs appliquées sont :
-#' \itemize{
-#'   \item \code{Courant = "#6D76F8"}
-#'   \item \code{Plat    = "#7FDD4C"}
-#'   \item \code{Profond = "#C72C48"}
-#' }
+#' @param yaml_path Chemin YAML de connexion PG
+#' @param code_station Code Sandre (prioritaire si fourni)
+#' @param code_point_prelevement_aspe Code ASPE si pas de station
+#' @param annee_debut Année minimale (défaut 1950)
+#' @param annee_fin Année maximale (défaut = année courante)
+#' @param n_last Nombre de dernières dates distinctes (défaut 10)
+#' @param titre Titre du graphique
+#' @param schema Schéma SQL (défaut "qe")
+#' @param exclure_typologies Vecteur des typologies d’opérations à exclure
 #'
-#' Les dates (opérations ASPE) sont affichées au format \code{\%d/\%m/\%y},
-#' ordonnées chronologiquement, et pivotées de 90° pour faciliter la lecture.
-#'
-#' @param yaml_path \code{character(1)}  
-#' Chemin vers le fichier YAML contenant les informations de connexion PostgreSQL.
-#'
-#' @param code_station \code{character(1)}  
-#' Code Sandre de la station. Si renseigné conjointement avec 
-#' \code{code_point_prelevement_aspe}, il est prioritaire (avec warning).
-#'
-#' @param code_point_prelevement_aspe \code{character(1)}  
-#' Code du point ASPE si \code{code_station} n'est pas fourni.
-#'
-#' @param annee_debut \code{numeric(1)}  
-#' Année minimale des opérations à prendre en compte (défaut : 1950).
-#'
-#' @param annee_fin \code{numeric(1)}  
-#' Année maximale des opérations (défaut : année courante).
-#'
-#' @param n_last \code{integer(1)}  
-#' Nombre de dernières dates d’opérations (distinctes) à représenter.
-#'
-#' @param titre \code{character(1)}  
-#' Titre du graphique.
-#'
-#' @return  
-#' Un objet \code{ggplot2} représentant un histogramme des profondeurs
-#' par faciès. Retourne \code{NULL} si aucune donnée n’est disponible.
-#'
-#' @details
-#' La fonction interroge la table \code{qe.aspe_operations}.  
-#' Elle nettoie et transforme les champs \code{facies_profondeur_moyenne}
-#' et \code{facies_libelle_type} afin de représenter graphiquement les
-#' profondeurs par faciès pour chaque date sélectionnée.
-#'
-#' Les barres sont affichées en position \code{dodge} (côte à côte) pour
-#' permettre de comparer les faciès au sein d'une même date.
-#'
-#' @examples
-#' \dontrun{
-#' plot_facies_profondeur_histogram(
-#'   yaml_path = "config/connexion.yml",
-#'   code_station = "04216000",
-#'   annee_debut = 2010,
-#'   n_last = 12
-#' )
-#' }
-#'
+#' @return Un ggplot2 ou NULL
 #' @export
 plot_facies_profondeur_histogram <- function(
   yaml_path,
@@ -84,136 +37,117 @@ plot_facies_profondeur_histogram <- function(
   annee_debut = 1950,
   annee_fin = as.integer(format(Sys.Date(), "%Y")),
   n_last = 10,
-  titre = "Profondeurs par faciès"
+  titre = "Profondeurs par faciès",
+  schema = "qe",
+  exclure_typologies = c("Incorrecte")
 ){
-  library(DBI)
-  library(dplyr)
-  library(ggplot2)
-  library(stringr)
-  library(tidyr)
+  library(DBI); library(dplyr); library(ggplot2)
+  library(stringr); library(tidyr); library(glue)
 
-  # --- Paramètre station / CPP ---
-  if (!is.null(code_station) & !is.null(code_point_prelevement_aspe)) {
-    warning("code_station et code_point_prelevement_aspe fournis : priorité au code_station.")
+  # Helpers compatibles fusen
+  clean_depths <- function(x) {
+    x2 <- str_remove(x, "^\\\\x")
+    x2 <- str_squish(x2)
+    vals <- str_split(x2, "\\s+")[[1]]
+    suppressWarnings(as.numeric(vals))
   }
-  use_station <- !is.null(code_station)
 
-  # --- Connexion PG ---
+  clean_facies <- function(x) {
+    x2 <- str_remove(x, "^\\\\x")
+    x2 <- str_squish(x2)
+    x2 <- str_replace_all(x2, " ", "")
+    fac <- str_split(x2, "(?=[A-Z])")[[1]]
+    fac <- fac[fac != "" & !is.na(fac)]
+    ifelse(grepl("^Profond", fac, ignore.case = TRUE), "Profond", fac)
+  }
+
+  expand_match <- function(date_op, date_label, depths, facies){
+    nd <- length(depths); nf <- length(facies)
+    if (nd == nf) {
+      tibble(date_op=date_op, date_label=date_label, profondeur=depths, facies=facies)
+    } else if (nd > nf) {
+      tibble(date_op=date_op, date_label=date_label,
+             profondeur=depths,
+             facies=rep(facies, length.out=nd))
+    } else {
+      tibble(date_op=date_op, date_label=date_label,
+             profondeur=rep(depths, length.out=nf),
+             facies=facies)
+    }
+  }
+
+  # Connexion PG
   con <- connect_pg(yaml_path)
   on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-  # --- SQL ---
-  if (use_station) {
-    sql <- glue::glue("
-      SELECT
-        s.code_station,
-        o.date_operation::date AS date_op,
-        o.facies_profondeur_moyenne,
-        o.facies_libelle_type
-      FROM qe.aspe_operations o
-      LEFT JOIN qe.aspe_stations s
-        ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
-      WHERE s.code_station = '{code_station}'
-        AND EXTRACT(YEAR FROM o.date_operation::date)
-            BETWEEN {annee_debut} AND {annee_fin}
-        AND o.facies_profondeur_moyenne IS NOT NULL
-        AND o.facies_libelle_type IS NOT NULL
-      ORDER BY date_op DESC
-    ")
+  schema_safe <- sanitize_schema(schema)
+  tbl_ops <- sprintf('"%s".aspe_operations',  schema_safe)
+  tbl_sta <- sprintf('"%s".aspe_stations',    schema_safe)
+
+  if (!is.null(code_station)) {
+    join_sql   <- glue("LEFT JOIN {tbl_sta} s ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe")
+    filtre_sql <- "s.code_station = $1"
+    param1     <- code_station
+  } else if (!is.null(code_point_prelevement_aspe)) {
+    join_sql   <- ""
+    filtre_sql <- "o.code_point_prelevement_aspe = $1"
+    param1     <- code_point_prelevement_aspe
   } else {
-    sql <- glue::glue("
-      SELECT
-        s.code_station,
-        o.date_operation::date AS date_op,
-        o.facies_profondeur_moyenne,
-        o.facies_libelle_type
-      FROM qe.aspe_operations o
-      LEFT JOIN qe.aspe_stations s
-        ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
-      WHERE o.code_point_prelevement_aspe = '{code_point_prelevement_aspe}'
-        AND EXTRACT(YEAR FROM o.date_operation::date)
-            BETWEEN {annee_debut} AND {annee_fin}
-        AND o.facies_profondeur_moyenne IS NOT NULL
-        AND o.facies_libelle_type IS NOT NULL
-      ORDER BY date_op DESC
-    ")
+    stop("Veuillez fournir code_station OU code_point_prelevement_aspe.")
   }
 
-  df <- DBI::dbGetQuery(con, sql)
+  sql <- glue("
+    SELECT
+      o.date_operation::date AS date_op,
+      o.facies_profondeur_moyenne,
+      o.facies_libelle_type
+    FROM {tbl_ops} o
+    {join_sql}
+    WHERE {filtre_sql}
+      AND NOT (o.libelle_qualification_operation = ANY($4))
+      AND EXTRACT(YEAR FROM o.date_operation::date)
+            BETWEEN $2 AND $3
+      AND o.facies_profondeur_moyenne IS NOT NULL
+      AND o.facies_libelle_type IS NOT NULL
+    ORDER BY date_op DESC;
+  ")
+
+  df <- DBI::dbGetQuery(
+    con, sql,
+    params=list(param1, annee_debut, annee_fin, exclure_typologies)
+  )
   if (nrow(df) == 0) return(NULL)
 
-  # --- Sélection n dernières dates ---
   df <- df %>%
     distinct(date_op, .keep_all = TRUE) %>%
     arrange(desc(date_op)) %>%
     slice(1:n_last) %>%
     arrange(date_op)
 
-  df$date_label <- factor(format(df$date_op, "%d/%m/%y"),
-                          levels = format(df$date_op, "%d/%m/%y"))
+  df$date_label <- format(df$date_op, "%d/%m/%y")
 
-  # --- Nettoyage facies_profondeur_moyenne ---
-  # Format typique : "\x0.10 7.30" → on retire "\x" puis on découpe les nombres
-  df <- df %>%
-    mutate(
-      facies_profondeur_moyenne = str_remove(facies_profondeur_moyenne, "^\\\\x"),
-      facies_profondeur_moyenne = str_squish(facies_profondeur_moyenne)
-    )
+  df$depths_list  <- lapply(df$facies_profondeur_moyenne, clean_depths)
+  df$facies_list  <- lapply(df$facies_libelle_type,       clean_facies)
 
-  # Découpage en valeurs numériques (séparées par espaces)
-  df <- df %>%
-    mutate(
-      depths_list = str_split(facies_profondeur_moyenne, "\\s+"),
-      depths_list = lapply(depths_list, function(v) suppressWarnings(as.numeric(v)))
-    )
+  # Expansion SANS pipe et SANS mutate(list(...))
+  long_df <- bind_rows(
+    lapply(seq_len(nrow(df)), function(i){
+      expand_match(
+        df$date_op[i],
+        df$date_label[i],
+        df$depths_list[[i]],
+        df$facies_list[[i]]
+      )
+    })
+  )
 
-  # --- Nettoyage facies_libelle_type ---
-  df <- df %>%
-    mutate(
-      facies_raw = str_remove(facies_libelle_type, "^\\\\x"),
-      facies_raw = str_squish(facies_raw),
-      facies_raw = str_replace_all(facies_raw, " ", ""),
-      facies_raw = str_split(facies_raw, "(?=[A-Z])"),
-      facies_raw = lapply(facies_raw, function(v){
-        v <- v[!is.na(v) & v != ""]
-        # Normalisation Profond*
-        v <- ifelse(grepl("^Profond", v, ignore.case = TRUE), "Profond", v)
-        v
-      })
-    )
-
-  # --- Mise en correspondance profondeurs / faciès ---
-  df <- df %>%
-    rowwise() %>%
-    mutate(
-      match_lists = list({
-        d <- depths_list
-        f <- facies_raw
-        nd <- length(d)
-        nf <- length(f)
-
-        if (nd == nf) {
-          tibble(profondeur = d, facies = f)
-        } else if (nd > nf) {
-          tibble(profondeur = d, facies = rep(f, length.out = nd))
-        } else {
-          tibble(profondeur = rep(d, length.out = nf), facies = f)
-        }
-      })
-    ) %>%
-    ungroup() %>%
-    select(date_op, date_label, match_lists) %>%
-    unnest(match_lists)
-
-  # --- Couleurs ---
   facies_colors <- c(
     "Courant" = "#6D76F8",
-    "Plat" = "#7FDD4C",
+    "Plat"    = "#7FDD4C",
     "Profond" = "#C72C48"
   )
 
-  # --- Graphique ---
-  p <- ggplot(df, aes(x = date_label, y = profondeur, fill = facies)) +
+  ggplot(long_df, aes(x = factor(date_label), y = profondeur, fill = facies)) +
     geom_col(position = position_dodge(width = 0.8)) +
     scale_fill_manual(values = facies_colors, drop = FALSE) +
     labs(
@@ -225,9 +159,7 @@ plot_facies_profondeur_histogram <- function(
     theme_bw(base_size = 12) +
     theme(
       axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
-      plot.title = element_text(face = "bold")
+      plot.title  = element_text(face = "bold")
     )
-
-  return(p)
 }
 

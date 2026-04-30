@@ -2,7 +2,7 @@
 % Please edit documentation in R/make_habitats_peche_planche.R
 \name{make_habitats_peche_planche}
 \alias{make_habitats_peche_planche}
-\title{Planche synthèse habitats pêches électriques (faciès, profondeur, ...)}
+\title{Planche synthèse habitats pêches électriques (faciès, profondeur, surface, habitats)}
 \usage{
 make_habitats_peche_planche(
   yaml_path,
@@ -17,42 +17,56 @@ make_habitats_peche_planche(
   width = 29.7/2.54,
   height = 21/2.54,
   dpi = 300,
-  n_last = 12
+  n_last = 12,
+  exclure_typologies = c("Incorrecte")
 )
 }
 \arguments{
-\item{yaml_path}{Chemin du YAML de connexion}
+\item{yaml_path}{Fichier YAML de connexion PostgreSQL.}
 
-\item{station}{Code Sandre}
+\item{station}{Code Sandre (prioritaire si fourni).}
 
-\item{annee_debut}{Année de début (défaut 1950)}
+\item{code_point_prelevement_aspe}{Code ASPE si \code{station} n’est pas fourni.}
 
-\item{annee_fin}{Année de fin (défaut = année courante)}
+\item{annee_debut}{Année minimale (défaut 1950).}
 
-\item{schema}{Schéma SQL (défaut "qe")}
+\item{annee_fin}{Année maximale (défaut = année courante).}
 
-\item{titre}{Titre principal (défaut: "\if{html}{\out{<station>}} — Synthèse habitats")}
+\item{schema}{Schéma SQL (défaut \code{"qe"}).}
 
-\item{sous_titre}{Sous-titre (défaut: "synthèse générée le \if{html}{\out{<date>}} par Eaux & Vilaine")}
+\item{titre}{Titre principal (auto si NULL).}
 
-\item{file_out}{Chemin de sauvegarde (PNG) si non NULL}
+\item{sous_titre}{Sous‑titre (auto si NULL).}
 
-\item{width}{Largeur (pouces), défaut A4 paysage}
+\item{file_out}{Chemin PNG à générer (NULL = pas d’export).}
 
-\item{height}{Hauteur (pouces), défaut A4 paysage}
+\item{width}{Largeur (pouces ; défaut A4 paysage).}
 
-\item{dpi}{DPI pour l'export}
+\item{height}{Hauteur (pouces ; défaut A4 paysage).}
 
-\item{n_last}{Nombre maximum de campagnes affichées}
+\item{dpi}{DPI export.}
+
+\item{n_last}{Nombre maximum de campagnes à afficher.}
+
+\item{exclure_typologies}{Vecteur des typologies d’opérations à exclure
+(défaut \code{"Incorrecte"}).}
 }
 \value{
-Un objet \code{ggplot} (composé avec \code{cowplot})
+Un objet ggplot/cowplot, ou NULL si aucune donnée.
 }
 \description{
-Planche synthèse habitats pêches électriques (faciès, profondeur, ...)
+Produit une planche complète combinant :
+\itemize{
+\item un heatmap des habitats (conditions / faciès / hydrologie),
+\item un histogramme des faciès,
+\item un histogramme des profondeurs,
+\item un histogramme des surfaces pêchées.
 }
-\examples{
-\dontrun{
-make_habitats_peche_planche(".../config.yml", "04216050", annee_debut = 2000, n_last = 12)
 }
+\details{
+Toutes les fonctions sous‑jacentes appliquent un même filtrage des opérations
+via \code{libelle_qualification_operation}, selon l’argument \code{exclure_typologies}.
+
+Fonctionne pour une station \code{code_station} (via aspe_stations) ou un point
+ASPE orphelin \code{code_point_prelevement_aspe} (sans JOIN).
 }

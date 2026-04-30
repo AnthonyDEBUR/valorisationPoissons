@@ -2,7 +2,7 @@
 % Please edit documentation in R/plot_longueur_pechee_histogram.R
 \name{plot_longueur_pechee_histogram}
 \alias{plot_longueur_pechee_histogram}
-\title{Histogramme des longueurs pêchées de pêche ASPE pour une station}
+\title{Histogramme des longueurs pêchées ASPE pour une station ou un CPP}
 \usage{
 plot_longueur_pechee_histogram(
   yaml_path,
@@ -11,16 +11,17 @@ plot_longueur_pechee_histogram(
   annee_debut = 1950,
   annee_fin = as.integer(format(Sys.Date(), "\%Y")),
   n_last = 10,
-  titre = "Longueur station (m)"
+  titre = "Longueur station (m)",
+  schema = "qe",
+  exclure_typologies = c("Incorrecte")
 )
 }
 \arguments{
-\item{yaml_path}{Chemin vers le fichier YAML contenant les informations de
-connexion PostgreSQL.}
+\item{yaml_path}{Chemin vers le fichier YAML de connexion PostgreSQL.}
 
 \item{code_station}{[\code{character(1)}]\
 Code Sandre de la station. Si renseigné conjointement avec
-\code{code_point_prelevement_aspe}, il est prioritaire (avec warning).}
+\code{code_point_prelevement_aspe}, il est \strong{prioritaire} (un warning est émis).}
 
 \item{code_point_prelevement_aspe}{[\code{character(1)}]\
 Code du point de prélèvement ASPE utilisé si \code{code_station} n'est pas fourni.}
@@ -32,46 +33,52 @@ Année minimale des opérations à prendre en compte (défaut : 1950).}
 Année maximale (défaut : année courante).}
 
 \item{n_last}{[\code{integer(1)}]\
-Nombre de dernières dates d’opérations (distinctes) à représenter.}
+Nombre des \strong{dernières dates d’opérations distinctes} à représenter (défaut : 10).}
 
 \item{titre}{[\code{character(1)}]\
-Titre du graphique (défaut : \code{"Prof. moy. station (m)"}).}
+Titre du graphique (défaut : \code{"Longueur station (m)"}).}
+
+\item{schema}{Schéma SQL contenant les tables (défaut \code{"qe"}).}
+
+\item{exclure_typologies}{Vecteur des \strong{typologies d'opération à exclure}
+(défaut : \code{"Incorrecte"}), appliqué à \code{aspe_operations.libelle_qualification_operation}.}
 }
 \value{
-Un objet ggplot2 représentant un histogramme des profondeurs
-de prélèvement. Retourne \code{NULL} si aucune donnée n’est disponible.
+Un objet \code{ggplot2} ou \code{NULL} si aucune donnée.
 }
 \description{
-Cette fonction interroge la base ASPE via un fichier YAML de connexion et
-extrait les longueurs pêchées (\code{longueur}) issues de la table
-\code{qe.aspe_operations} pour une station donnée (via \code{code_station}) ou pour un
-point ASPE (\code{code_point_prelevement_aspe}).
+Extrait les longueurs pêchées (\code{longueur}) depuis la table
+\code{aspe_operations}, filtrées selon :
+\itemize{
+\item une station (\code{code_station}) \strong{ou} un point ASPE (\code{code_point_prelevement_aspe}) ;
+\item un intervalle d'années (\code{annee_debut} – \code{annee_fin}) ;
+\item un filtre d'exclusion de typologies d'opérations via
+\code{libelle_qualification_operation} (\code{exclure_typologies}) ;
+\item les \code{n_last} dernières dates distinctes.
+}
 }
 \details{
-Si les deux identifiants sont fournis, \code{code_station} est prioritaire et un
-warning est renvoyé.
-
-Les données sont filtrées entre \code{annee_debut} et \code{annee_fin}, puis seules les
-\code{n_last} dernières dates d’opération distinctes sont conservées.
-
-La fonction produit un graphique ggplot2 de type histogramme (barres verticales)
-où la hauteur des barres représente la profondeur (en mètres).
-Les dates sont affichées au format \\%d/\\%m/\\%y, ordonnées chronologiquement,
-et pivoteées de 90° pour faciliter la lecture.
-
-La table interrogée est : \code{qe.aspe_operations}, champ \code{profondeur}.
-
-Les dates d’opération (\code{date_operation}) sont converties en classe \code{Date},
-puis ordonnées avant d’être transformées en facteur pour un affichage
-strictement chronologique dans le graphique.
+Produit un histogramme ggplot2 où chaque barre représente la \strong{longueur} (en m)
+relevée lors d'une opération ; les dates sont affichées en \strong{ordre chronologique}
+(format \verb{\%d/\%m/\%y}) et pivotées de 90°.
 }
 \examples{
 \dontrun{
+# Par station, exclusion par défaut ("Incorrecte")
 plot_longueur_pechee_histogram(
- yaml_path = "C:/workspace/gwilenalim/yaml/config.yml",
- code_station = "04216050",
- annee_debut  = 2000,
- annee_fin    = 2025
+  yaml_path = "config/connexion.yml",
+  code_station = "04216050",
+  annee_debut  = 2000,
+  annee_fin    = 2025,
+  n_last       = 12
+)
+
+# Par CPP, avec plusieurs typologies exclues
+plot_longueur_pechee_histogram(
+  yaml_path = "config/connexion.yml",
+  code_point_prelevement_aspe = "CPP_123",
+  annee_debut = 2010,
+  exclure_typologies = c("Incorrecte","Doublon","Hors périmètre")
 )
 }
 

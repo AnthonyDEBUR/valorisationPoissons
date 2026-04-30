@@ -19,86 +19,61 @@ ipr_heatmap_3x3(
   size_title = 14,
   tile_border_size = 1.1,
   show_axis_text = TRUE,
-  show_axis_titles = TRUE
+  show_axis_titles = TRUE,
+  exclure_typologies = c("Incorrecte")
 )
 }
 \arguments{
-\item{yaml_path}{Chemin du fichier YAML contenant les informations de connexion
-à PostgreSQL.}
+\item{yaml_path}{Chemin YAML de connexion PG}
 
-\item{code_operation}{Code de l’opération ASPE dont la matrice IPR doit être
-représentée.}
+\item{code_operation}{Code d'opération ASPE (prioritaire si fourni)}
 
-\item{seuil_attendu}{Vecteur numérique de deux valeurs indiquant les seuils
-haut et bas de probabilité pour définir les classes L1/L2/L3.
-Par défaut \code{c(0.6, 0.2)}.}
+\item{code_station}{Code Sandre (si code_operation NULL)}
 
-\item{seuil_abondant}{Seuil d’effectif au‑delà duquel la catégorie C1
-(abondant) est attribuée. Par défaut \code{20}.}
+\item{code_point_prelevement_aspe}{CPP (si station NULL)}
 
-\item{titre}{Titre optionnel du graphique. Si \code{NULL}, aucun titre n’est ajouté.}
+\item{seuil_attendu}{Seuils L1/L2/L3 (par défaut c(0.6,0.2))}
 
-\item{size_labels}{Taille des textes affichés dans les tuiles.}
+\item{seuil_abondant}{Seuil C1 (par défaut 20)}
 
-\item{lineheight_labels}{Interligne pour les labels internes à chaque tuile.}
+\item{titre}{Titre optionnel}
 
-\item{size_axis_text}{Taille des valeurs d’axes (ticks).}
+\item{size_labels}{Taille labels internes}
 
-\item{size_axis_title}{Taille des titres des axes (si affichés).}
+\item{lineheight_labels}{Interligne labels internes}
 
-\item{size_title}{Taille du titre du graphique (si affiché).}
+\item{size_axis_text}{Taille tick labels}
 
-\item{tile_border_size}{Épaisseur du contour des tuiles.}
+\item{size_axis_title}{Taille titres axes}
 
-\item{show_axis_text}{Logique : afficher (\code{TRUE}) ou non (\code{FALSE}) les valeurs
-des axes X et Y. Utile pour conserver les valeurs d’axes dans des planches
-multi‑vignettes.}
+\item{size_title}{Taille du titre principal}
 
-\item{show_axis_titles}{Logique : afficher (\code{TRUE}) ou non (\code{FALSE}) les titres
-des axes. Généralement mis à \code{FALSE} dans les planches où les titres sont
-mutualisés.}
+\item{tile_border_size}{Épaisseur bordures}
+
+\item{show_axis_text}{Afficher valeurs axes ?}
+
+\item{show_axis_titles}{Afficher titres axes ?}
+
+\item{exclure_typologies}{Typologies ASPE à exclure (défaut "Incorrecte")}
 }
 \value{
-Un objet \strong{ggplot2} représentant la heatmap 3×3.
+Un ggplot2 3×3
 }
 \description{
 Génère la matrice 3×3 croisant :
 \itemize{
-\item la probabilité d’occurrence attendue issue du modèle IPR (L1–L2–L3),
-\item l’effectif réellement observé lors de l’opération (C1–C2–C3).
+\item la probabilité d’occurrence attendue (L1–L2–L3),
+\item l’effectif réellement observé (C1–C2–C3),
+uniquement sur les taxons contributifs de l’IPR.
 }
-
-Seuls les taxons contributifs de l’IPR sont utilisés (liste codée en dur).
-Chaque cellule affiche une étiquette multilignes regroupant les taxons présents
-sous la forme : \code{"Nom (effectif)"}.
-
-La fonction est entièrement paramétrable :
+}
+\details{
+Permet :
 \itemize{
-\item contrôle de la taille des labels internes,
-\item contrôle de la taille des textes et titres d’axes,
-\item possibilité d’afficher ou masquer les titres et/ou les valeurs d’axes,
-\item personnalisation du titre du graphique et de l’épaisseur des bordures.
+\item d'afficher ou masquer les titres et valeurs d'axes,
+\item personnaliser les tailles de textes,
+\item personnaliser l'épaisseur des bordures,
+\item fournir un titre ou non,
+\item \strong{exclure des typologies d'opérations} via \code{libelle_qualification_operation}.
 }
-
-Cette flexibilité permet notamment :
-\itemize{
-\item d’utiliser la fonction seule (axes complets visibles),
-\item ou de l’intégrer dans une planche multi‑graphes avec axes communs
-(en désactivant les titres des axes mais en conservant les valeurs).
-}
-}
-\examples{
-\dontrun{
-# Appel simple avec axes complets :
-ipr_heatmap_3x3("config.yml", code_operation = 38673)
-
-# Appel pour intégration dans une planche (axes mutualisés) :
-ipr_heatmap_3x3(
-  "config.yml",
-  38673,
-  show_axis_titles = FALSE,
-  show_axis_text   = TRUE
-)
-}
-
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/make_operations_peche_planche.R
 \name{make_operations_peche_planche}
 \alias{make_operations_peche_planche}
-\title{Planche synthèse opération pêches électriques (protocole, puissance, ...) — station OU CPP}
+\title{Planche synthèse des opérations de pêche électrique (protocole, longueurs, largeurs, puissance, etc.)}
 \usage{
 make_operations_peche_planche(
   yaml_path,
@@ -17,39 +17,61 @@ make_operations_peche_planche(
   width = 29.7/2.54,
   height = 21/2.54,
   dpi = 300,
-  n_last = 12
+  n_last = 12,
+  exclure_typologies = c("Incorrecte")
 )
 }
 \arguments{
-\item{yaml_path}{Chemin du YAML de connexion}
+\item{yaml_path}{Fichier YAML de connexion PostgreSQL}
 
-\item{station}{Code Sandre (ou NULL si CPP fourni)}
+\item{station}{Code Sandre de la station (prioritaire si renseigné)}
 
-\item{code_point_prelevement_aspe}{Code du point ASPE (ou NULL si station fourni)}
+\item{code_point_prelevement_aspe}{Code ASPE si station non renseignée}
 
-\item{annee_debut}{Année de début (défaut 1950)}
+\item{annee_debut}{Année minimale (défaut 1950)}
 
-\item{annee_fin}{Année de fin (défaut = année courante)}
+\item{annee_fin}{Année maximale (défaut année courante)}
 
-\item{schema}{Schéma SQL (défaut "qe")}
+\item{schema}{Schéma SQL (défaut \code{"qe"})}
 
-\item{titre}{Titre principal (défaut auto : "CODE — LIBELLÉ — Synthèse opérations de pêche" ou WAMA)}
+\item{titre}{Titre principal (auto si NULL)}
 
-\item{sous_titre}{Sous-titre (défaut: "Synthèse réalisée le \if{html}{\out{<date>}} par Eaux & Vilaine")}
+\item{sous_titre}{Sous-titre (auto si NULL)}
 
-\item{file_out}{Chemin de sauvegarde (PNG) si non NULL}
+\item{file_out}{Chemin PNG à générer (NULL = pas d’export)}
 
-\item{width}{Largeur (pouces), défaut A4 paysage}
+\item{width}{Largeur en pouces}
 
-\item{height}{Hauteur (pouces), défaut A4 paysage}
+\item{height}{Hauteur en pouces}
 
-\item{dpi}{DPI pour l'export}
+\item{dpi}{Résolution PNG}
 
-\item{n_last}{Nombre maximum de campagnes affichées (par dates distinctes)}
+\item{n_last}{Nombre de dernières dates distinctes à afficher}
+
+\item{exclure_typologies}{Typologies d’opérations à exclure (défaut \code{"Incorrecte"})}
 }
 \value{
-Un objet \code{ggplot} (composé avec \code{cowplot}) ou NULL si aucune sous-figure disponible
+Un objet cowplot ou NULL
 }
 \description{
-Planche synthèse opération pêches électriques (protocole, puissance, ...) — station OU CPP
+Produit une planche complète combinant :
+\itemize{
+\item un descriptif des opérations (protocole, durées, volumes, etc.),
+\item un histogramme des longueurs pêchées,
+\item un histogramme des largeurs de lame d'eau,
+\item un histogramme des profondeurs,
+\item un histogramme des conductivités,
+\item un histogramme des températures instantanées,
+\item un histogramme des puissances.
+}
+}
+\details{
+Toutes les opérations incluses sont filtrées selon :
+\itemize{
+\item station OU CPP,
+\item l’intervalle d’années,
+\item les \code{n_last} dernières dates distinctes,
+\item la typologie d’opération (\code{libelle_qualification_operation}) à exclure
+via \code{exclure_typologies}.
+}
 }

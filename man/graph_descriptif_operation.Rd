@@ -2,8 +2,7 @@
 % Please edit documentation in R/graph_descriptif_operation.R
 \name{graph_descriptif_operation}
 \alias{graph_descriptif_operation}
-\title{Commanditaires & Opérateurs ASPE par date
-Descriptif opération}
+\title{Commanditaires & Opérateurs ASPE par date — Descriptif opération}
 \usage{
 graph_descriptif_operation(
   yaml_path,
@@ -14,52 +13,59 @@ graph_descriptif_operation(
   n_last = 10,
   titre = "Descriptif opération",
   normalize_accents = TRUE,
-  schema = "qe"
+  schema = "qe",
+  exclure_typologies = c("Incorrecte")
 )
 }
 \arguments{
-\item{yaml_path}{Chemin du YAML de connexion.}
+\item{yaml_path}{Chemin YAML de connexion}
 
-\item{code_station}{Code station ASPE (prioritaire si fourni avec code_point_prelevement_aspe).}
+\item{code_station}{Code Sandre (prioritaire si fourni)}
 
-\item{code_point_prelevement_aspe}{Code point ASPE.}
+\item{code_point_prelevement_aspe}{Code ASPE si station non fournie}
 
-\item{annee_debut}{Année de début de sélection (défaut 1950).}
+\item{annee_debut}{Année minimale (défaut 1950)}
 
-\item{annee_fin}{Année de fin de sélection (défaut année courante).}
+\item{annee_fin}{Année maximale (défaut année courante)}
 
-\item{n_last}{Nombre de dernières dates distinctes à afficher (défaut 10).}
+\item{n_last}{Nombre de dernières dates à afficher}
 
-\item{titre}{Titre du graphique (défaut : "Descriptif opération").}
+\item{titre}{Titre principal}
 
-\item{normalize_accents}{Si TRUE, déaccentue les textes (fusionne "À pied"/"A pied").}
+\item{normalize_accents}{TRUE = déaccentuation des textes}
+
+\item{schema}{Schéma SQL (défaut "qe")}
+
+\item{exclure_typologies}{Typologies d’opérations à exclure}
 }
 \value{
-Un objet ggplot2 facetté (5 panneaux : Commanditaire, Opérateur,
-Protocole, Prospection, Matériel).
+Un ggplot2 facetté ou NULL
 }
 \description{
-Interroge la base ASPE via un fichier YAML de connexion et extrait,
-pour une station ou un point ASPE :
+Extrait pour une station ou un point ASPE :
 \itemize{
-\item Acteurs (panneaux du haut) :
-\itemize{
-\item \code{commanditaire_libelle_aspe} (panneau "Commanditaire"),
-\item \code{operateur_libelle_aspe}     (panneau "Opérateur").
-}
-\item Modes de pêche (panneaux suivants) :
-\itemize{
-\item \code{protocole_peche}   (panneau "Protocole"),
-\item \code{moyen_prospection} (panneau "Prospection").
-}
-\item Comptages (panneau regroupé en bas) :
-\itemize{
-\item \code{nombre_anodes} + \code{nombre_epuisettes} (panneau "Matériel").
-}
+\item Commanditaire (\code{commanditaire_libelle_aspe})
+\item Opérateur (\code{operateur_libelle_aspe})
+\item Protocole de pêche (\code{protocole_peche})
+\item Moyen de prospection (\code{moyen_prospection})
+\item Matériel (nombre d'anodes, nombre d'épuisettes)
 }
 }
 \details{
-L'axe des x représente les dates (facteur ordonné, dernières dates).
-Pour Commanditaire/Opérateur/Protocole/Prospection : l'axe y liste les valeurs (un point par présence).
-Pour Matériel : deux niveaux en y ("Anodes", "Epuisettes"), la valeur (agrégée par date) est inscrite dans le point.
+Affiche un graphique multi‑panneaux (ggplot2 + facets) :
+\itemize{
+\item 1 panneau "Commanditaire"
+\item 1 panneau "Opérateur"
+\item 1 panneau "Protocole"
+\item 1 panneau "Prospection"
+\item 1 panneau "Matériel" (Anodes / Epuisettes)
+}
+
+Les opérations sont filtrées selon :
+\itemize{
+\item station OU CPP,
+\item intervalle d’années,
+\item les \code{n_last} dernières dates distinctes,
+\item les typologies à exclure via \code{exclure_typologies}.
+}
 }

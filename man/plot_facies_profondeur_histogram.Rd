@@ -11,83 +11,50 @@ plot_facies_profondeur_histogram(
   annee_debut = 1950,
   annee_fin = as.integer(format(Sys.Date(), "\%Y")),
   n_last = 10,
-  titre = "Profondeurs par faciès"
+  titre = "Profondeurs par faciès",
+  schema = "qe",
+  exclure_typologies = c("Incorrecte")
 )
 }
 \arguments{
-\item{yaml_path}{\code{character(1)}
-Chemin vers le fichier YAML contenant les informations de connexion PostgreSQL.}
+\item{yaml_path}{Chemin YAML de connexion PG}
 
-\item{code_station}{\code{character(1)}
-Code Sandre de la station. Si renseigné conjointement avec
-\code{code_point_prelevement_aspe}, il est prioritaire (avec warning).}
+\item{code_station}{Code Sandre (prioritaire si fourni)}
 
-\item{code_point_prelevement_aspe}{\code{character(1)}
-Code du point ASPE si \code{code_station} n'est pas fourni.}
+\item{code_point_prelevement_aspe}{Code ASPE si pas de station}
 
-\item{annee_debut}{\code{numeric(1)}
-Année minimale des opérations à prendre en compte (défaut : 1950).}
+\item{annee_debut}{Année minimale (défaut 1950)}
 
-\item{annee_fin}{\code{numeric(1)}
-Année maximale des opérations (défaut : année courante).}
+\item{annee_fin}{Année maximale (défaut = année courante)}
 
-\item{n_last}{\code{integer(1)}
-Nombre de dernières dates d’opérations (distinctes) à représenter.}
+\item{n_last}{Nombre de dernières dates distinctes (défaut 10)}
 
-\item{titre}{\code{character(1)}
-Titre du graphique.}
+\item{titre}{Titre du graphique}
+
+\item{schema}{Schéma SQL (défaut "qe")}
+
+\item{exclure_typologies}{Vecteur des typologies d’opérations à exclure}
 }
 \value{
-Un objet \code{ggplot2} représentant un histogramme des profondeurs
-par faciès. Retourne \code{NULL} si aucune donnée n’est disponible.
+Un ggplot2 ou NULL
 }
 \description{
-NE FONCTIONNE PAS CAR BUG SOUS HUBEAU
+Cette fonction extrait les profondeurs moyennes de faciès
+(\code{facies_profondeur_moyenne}) et les types de faciès (\code{facies_libelle_type})
+depuis \code{aspe_operations}, pour une station ou un point ASPE.
 }
 \details{
-Cette fonction interroge la base ASPE via un fichier YAML de connexion
-et extrait les champs \code{facies_profondeur_moyenne} et
-\code{facies_libelle_type} issus de la table \code{qe.aspe_operations}.
+Elle nettoie les chaînes (retrait du préfixe "\\x", découpages, normalisation
+des noms de faciès) puis met en correspondance profondeurs et faciès.
 
-Les profondeurs moyennes de faciès (\code{facies_profondeur_moyenne})
-sont nettoyées en supprimant le préfixe \code{"\\x"}, puis scindées
-en profondeur(s) unitaires en coupant avant chaque point, conformément
-au format observé (par ex. \code{"\\x0.097.19"} devient \code{c("0.09","7.19")}).
-
-Les libellés de faciès (\code{facies_libelle_type}) sont également
-nettoyés (suppression des espaces, de \code{"\\x"}, puis découpage
-sur les lettres majuscules). Tous les faciès dont l'intitulé correspond
-à une forme de “Profond” (ex. \emph{Profonds}, \emph{Profonde},
-\emph{ProfondeS}) sont harmonisés en \code{"Profond"}.
-
-Après association entre profondeurs et faciès pour chaque date, la
-fonction génère un histogramme où chaque date comporte autant de
-barres que de faciès présents. Les couleurs appliquées sont :
+Le filtrage tient compte :
 \itemize{
-\item \code{Courant = "#6D76F8"}
-\item \code{Plat    = "#7FDD4C"}
-\item \code{Profond = "#C72C48"}
+\item du code station ou CPP,
+\item d’un intervalle d’années,
+\item des \code{n_last} dernières opérations distinctes,
+\item des typologies d’opérations à exclure (\code{libelle_qualification_operation}).
 }
 
-Les dates (opérations ASPE) sont affichées au format \code{\%d/\%m/\%y},
-ordonnées chronologiquement, et pivotées de 90° pour faciliter la lecture.
-
-La fonction interroge la table \code{qe.aspe_operations}.
-Elle nettoie et transforme les champs \code{facies_profondeur_moyenne}
-et \code{facies_libelle_type} afin de représenter graphiquement les
-profondeurs par faciès pour chaque date sélectionnée.
-
-Les barres sont affichées en position \code{dodge} (côte à côte) pour
-permettre de comparer les faciès au sein d'une même date.
-}
-\examples{
-\dontrun{
-plot_facies_profondeur_histogram(
-  yaml_path = "config/connexion.yml",
-  code_station = "04216000",
-  annee_debut = 2010,
-  n_last = 12
-)
-}
-
+Le résultat est un histogramme où chaque date affiche une ou plusieurs barres
+(position dodge), avec une couleur par type de faciès.
 }

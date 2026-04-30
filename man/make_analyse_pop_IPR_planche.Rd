@@ -2,7 +2,7 @@
 % Please edit documentation in R/make_analyse_pop_ipr_planche.R
 \name{make_analyse_pop_IPR_planche}
 \alias{make_analyse_pop_IPR_planche}
-\title{Planche IPR — Synthèse des n dernières opérations d'une station}
+\title{Planche IPR — Analyse des n dernières opérations d'une station}
 \usage{
 make_analyse_pop_IPR_planche(
   yaml_path,
@@ -17,103 +17,80 @@ make_analyse_pop_IPR_planche(
   height = 21/2.54,
   dpi = 300,
   n_last = 12,
-  affiche_guildes_eco = TRUE
+  affiche_guildes_eco = TRUE,
+  exclure_typologies = c("Incorrecte"),
+  ...
 )
 }
 \arguments{
-\item{yaml_path}{Chemin du fichier YAML contenant les paramètres
-de connexion PostgreSQL.}
+\item{yaml_path}{Chemin du fichier YAML de connexion.}
 
-\item{station}{Code Sandre de la station (\code{code_station}) pour laquelle
-la planche doit être générée.}
+\item{station}{Code Sandre de la station (obligatoire).}
 
-\item{annee_debut}{Année minimale prise en compte.
-Par défaut : \code{1950}.}
+\item{annee_debut}{Année minimale (défaut 1950).}
 
-\item{annee_fin}{Année maximale prise en compte.
-Par défaut : année courante.}
+\item{annee_fin}{Année maximale (défaut = année courante).}
 
-\item{schema}{Nom du schéma PostgreSQL contenant les tables ASPE.
-Par défaut : \code{"qe"}.}
+\item{schema}{Schéma SQL (défaut \code{"qe"}).}
 
-\item{titre}{Titre principal de la planche.
-Par défaut : NULL.}
+\item{titre}{Titre global. Généré automatiquement si \code{NULL}.}
 
-\item{sous_titre}{Sous titre de la planche.
-Par défaut : NULL.}
+\item{sous_titre}{Sous‑titre global. Automatique si \code{NULL}.}
 
-\item{file_out}{Chemin d’enregistrement (PNG).
-Si \code{NULL}, aucun fichier n’est enregistré.}
+\item{file_out}{Export PNG (chemin du fichier).
+Si \code{NULL}, aucun export n’est réalisé.}
 
-\item{width}{Largeur de la figure en pouces.
-Par défaut : format A4 paysage (\code{29.7/2.54}).}
+\item{width}{Largeur en pouces (défaut A4 paysage).}
 
-\item{height}{Hauteur de la figure en pouces.
-Par défaut : A4 paysage (\code{21/2.54}).}
+\item{height}{Hauteur en pouces (défaut A4 paysage).}
 
-\item{dpi}{Résolution de sortie PNG. Par défaut \code{300}.}
+\item{dpi}{Résolution (défaut 300).}
 
-\item{n_last}{Nombre maximal d’opérations affichées.
-Par défaut : \code{12}.}
+\item{n_last}{Nombre maximum d’opérations (défaut 12).}
 
-\item{affiche_guildes_eco}{affiche les différentes guildes écologiques en bas de page (défaut = TRUE)}
+\item{affiche_guildes_eco}{Si TRUE, ajoute \code{graph_modalites_ipr()}.}
 
-\item{...}{Arguments supplémentaires transmis à \code{ipr_heatmap_3x3()}
-(permet par exemple d’ajuster dynamiquement les tailles de police).}
+\item{exclure_typologies}{Vecteur des typologies ASPE à exclure
+(défaut \code{c("Incorrecte")}).}
+
+\item{...}{Arguments additionnels transmis à \code{ipr_heatmap_3x3()}.}
 }
 \value{
-Un objet \code{ggplot}/grob (assemblage cowplot) représentant la planche.
-Retourne \code{NULL} si aucune opération IPR n’est trouvée pour la station.
+Un objet cowplot (la planche IPR).
+Retourne \code{NULL} si aucune opération n’est disponible.
 }
 \description{
-Génère une planche de graphiques représentant les \strong{n dernières opérations IPR}
-réalisées sur une station donnée.
+Génère une planche composée des \strong{n dernières vignettes IPR 3×3} réalisées
+sur une station donnée.
 
-Chaque vignette est produite par \code{ipr_heatmap_3x3()} avec :
+Chaque vignette est produite via \code{ipr_heatmap_3x3()} avec :
 \itemize{
-\item conservation des \strong{valeurs d’axes} dans chaque tuile (C1/C2/C3 ; L1/L2/L3),
-\item \strong{masquage des titres} d’axes pour permettre une mise en page propre,
-\item ajout d’un \strong{titre individuel} correspondant à la date de l’opération
-(format \code{jj/mm/aa}).
+\item \strong{valeurs d’axes visibles} (\code{show_axis_text = TRUE}) ;
+\item \strong{titres d’axes masqués} (\code{show_axis_titles = FALSE}) afin de mutualiser
+les titres dans la planche finale ;
+\item un \strong{titre local} correspondant à la date de l’opération (jj/mm/aa).
 }
 
-Les vignettes sont ordonnées du \strong{plus ancien au plus récent}, disposées
-\strong{de gauche à droite}, puis \strong{de haut en bas}.
-La planche comporte des \strong{titres d’axes X et Y mutualisés}, ce qui évite la
-redondance tout en conservant la lisibilité des valeurs d’axes dans chaque
-graphique individuel.
+La planche :
+\itemize{
+\item est triée \strong{du plus ancien au plus récent} ;
+\item est affichée en grille (4 colonnes × plusieurs lignes) ;
+\item possède un \strong{titre global}, un \strong{axe X commun}, un \strong{axe Y commun} ;
+\item peut afficher un panneau final \code{graph_modalites_ipr()} listant les guildes
+écologiques (option \code{affiche_guildes_eco}).
+}
 }
 \details{
-La fonction réalise les étapes suivantes :
+Étapes exécutées :
 \enumerate{
-\item Connexion à PostgreSQL via les paramètres du fichier YAML.
-\item Extraction des opérations IPR correspondant à \code{station} depuis
-\code{schema.aspe_ipr_compl}, jointes à \code{schema.aspe_operations} pour récupérer
-la date de prélèvement.
-\item Filtrage selon \code{annee_debut} et \code{annee_fin}.
-\item Sélection des \code{n_last} opérations les plus récentes, suivie d’un tri
-\strong{chronologique} du plus ancien au plus récent (ordre d’affichage).
-\item Génération, pour chaque opération, d’une vignette via \code{ipr_heatmap_3x3()}
-avec :
-\itemize{
-\item \strong{show_axis_text = TRUE} (conserve les valeurs d’axes),
-\item \strong{show_axis_titles = FALSE} (titres mutualisés ensuite),
-\item titre de sous-graphe = date de l’opération.
+\item Connexion PostgreSQL via YAML.
+\item Extraction des opérations IPR de \code{schema.aspe_ipr_compl}
+rejointes à \code{schema.aspe_operations}.
+\item Filtrage années.
+\item Sélection des \code{n_last} dernières dates.
+\item Génération d'une vignette avec \code{ipr_heatmap_3x3()} par opération.
+\item Construction de la grille.
+\item Ajout titre général + axes mutualisés.
+\item Export PNG optionnel.
 }
-\item Construction d’une grille de vignettes (4 colonnes × 3 lignes max).
-\item Ajout d’un \strong{titre général}, d’un \strong{axe X commun} et d’un \strong{axe Y commun}.
-\item Export éventuel en PNG via \code{cowplot::save_plot()}.
-}
-}
-\examples{
-\dontrun{
-make_analyse_pop_IPR_planche(
-  yaml_path = "C:/workspace/gwilenalim/yaml/config.yml",
-  station   = "04216050",
-  annee_debut = 2000,
-  n_last    = 12,
-  file_out  = "ipr_planche_04216050.png"
-)
-}
-
 }

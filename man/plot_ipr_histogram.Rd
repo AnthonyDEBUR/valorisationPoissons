@@ -12,28 +12,30 @@ plot_ipr_histogram(
   schema = "qe",
   title = "Notes IPR",
   bar_width = 0.9,
-  n_last = 12
+  n_last = 12,
+  exclure_typologies = c("Incorrecte")
 )
 }
 \arguments{
 \item{yaml_path}{Chemin du YAML de connexion Postgres}
 
-\item{station}{Code Sandre de la station (ex. "04199200")}
+\item{station}{Code Sandre de la station}
 
 \item{annee_debut}{Année de début}
 
-\item{annee_fin}{Année de fin (défaut = année courante)}
+\item{annee_fin}{Année de fin}
 
-\item{schema}{Schéma SQL (défaut "qe")}
+\item{schema}{Schéma SQL}
 
 \item{title}{Titre du graphique}
 
 \item{bar_width}{Largeur des barres}
 
-\item{n_last}{Nombre maximum de campagnes (dates distinctes)}
-}
-\value{
-Un objet ggplot2
+\item{n_last}{Nombre max de campagnes}
+
+\item{exclure_typologies}{Vecteur des typologies d'opérations à exclure
+(défaut = "Incorrecte", les autres typologies sont "Incertaine",
+"Non qualifié" et "Correcte")}
 }
 \description{
 Histogramme IPR par date d'opération (sécurisé)

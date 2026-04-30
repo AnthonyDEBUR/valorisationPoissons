@@ -2,7 +2,7 @@
 % Please edit documentation in R/plot_profondeur_histogram.R
 \name{plot_profondeur_histogram}
 \alias{plot_profondeur_histogram}
-\title{Histogramme des profondeurs de prélèvement ASPE pour une station}
+\title{Histogramme des profondeurs de prélèvement ASPE pour une station ou un CPP}
 \usage{
 plot_profondeur_histogram(
   yaml_path,
@@ -12,68 +12,45 @@ plot_profondeur_histogram(
   annee_fin = as.integer(format(Sys.Date(), "\%Y")),
   n_last = 10,
   titre = "Prof. moy. station (m)",
-  schema = "qe"
+  schema = "qe",
+  exclure_typologies = c("Incorrecte")
 )
 }
 \arguments{
-\item{yaml_path}{Chemin vers le fichier YAML contenant les informations de
-connexion PostgreSQL.}
+\item{yaml_path}{Chemin vers le YAML de connexion PostgreSQL.}
 
-\item{code_station}{[\code{character(1)}]\
-Code Sandre de la station. Si renseigné conjointement avec
-\code{code_point_prelevement_aspe}, il est prioritaire (avec warning).}
+\item{code_station}{Code Sandre (prioritaire si renseigné).}
 
-\item{code_point_prelevement_aspe}{[\code{character(1)}]\
-Code du point de prélèvement ASPE utilisé si \code{code_station} n'est pas fourni.}
+\item{code_point_prelevement_aspe}{Code du point ASPE (si \code{code_station} est NULL).}
 
-\item{annee_debut}{[\code{numeric(1)}]\
-Année minimale des opérations à prendre en compte (défaut : 1950).}
+\item{annee_debut}{Année minimale (défaut: 1950).}
 
-\item{annee_fin}{[\code{numeric(1)}]\
-Année maximale (défaut : année courante).}
+\item{annee_fin}{Année maximale (défaut: année courante).}
 
-\item{n_last}{[\code{integer(1)}]\
-Nombre de dernières dates d’opérations (distinctes) à représenter.}
+\item{n_last}{Nombre de dernières dates distinctes à afficher (défaut: 10).}
 
-\item{titre}{[\code{character(1)}]\
-Titre du graphique (défaut : \code{"Prof. moy. station (m)"}).}
+\item{titre}{Titre du graphique (défaut \code{"Prof. moy. station (m)"}).}
+
+\item{schema}{Schéma SQL (défaut \code{"qe"}).}
+
+\item{exclure_typologies}{Vecteur des typologies d’opérations à exclure
+(défaut \code{"Incorrecte"}).}
 }
 \value{
-Un objet ggplot2 représentant un histogramme des profondeurs
-de prélèvement. Retourne \code{NULL} si aucune donnée n’est disponible.
+Un objet ggplot2 (ou \code{NULL} si aucune donnée).
 }
 \description{
-Cette fonction interroge la base ASPE via un fichier YAML de connexion et
-extrait les profondeurs de prélèvement (\code{profondeur}) issues de la table
-\code{qe.aspe_operations} pour une station donnée (via \code{code_station}) ou pour un
-point ASPE (\code{code_point_prelevement_aspe}).
+Extrait les profondeurs de prélèvement (\code{profondeur}) depuis la table
+\code{aspe_operations}, filtrées selon :
+\itemize{
+\item une station (\code{code_station}) OU un point ASPE (\code{code_point_prelevement_aspe}) ;
+\item un intervalle d'années (\code{annee_debut} – \code{annee_fin}) ;
+\item les \code{n_last} dernières dates distinctes ;
+\item les typologies d'opération \strong{à exclure}, via le champ
+\code{libelle_qualification_operation} (argument \code{exclure_typologies}).
+}
 }
 \details{
-Si les deux identifiants sont fournis, \code{code_station} est prioritaire et un
-warning est renvoyé.
-
-Les données sont filtrées entre \code{annee_debut} et \code{annee_fin}, puis seules les
-\code{n_last} dernières dates d’opération distinctes sont conservées.
-
-La fonction produit un graphique ggplot2 de type histogramme (barres verticales)
-où la hauteur des barres représente la profondeur (en mètres).
-Les dates sont affichées au format \\%d/\\%m/\\%y, ordonnées chronologiquement,
-et pivoteées de 90° pour faciliter la lecture.
-
-La table interrogée est : \code{qe.aspe_operations}, champ \code{profondeur}.
-
-Les dates d’opération (\code{date_operation}) sont converties en classe \code{Date},
-puis ordonnées avant d’être transformées en facteur pour un affichage
-strictement chronologique dans le graphique.
-}
-\examples{
-\dontrun{
-plot_profondeur_histogram(
-  yaml_path = "config/connexion.yml",
-  code_station = "04216000",
-  annee_debut = 2000,
-  n_last = 12
-)
-}
-
+Produit un histogramme ggplot2, où chaque barre représente la profondeur
+(en mètres) d’une opération, avec dates pivotées à 90°.
 }

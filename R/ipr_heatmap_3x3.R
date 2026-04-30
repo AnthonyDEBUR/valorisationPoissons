@@ -2,70 +2,36 @@
 
 #' Heatmap 3×3 IPR (Attendu × Présent) — entièrement paramétrable
 #'
-#' @description
 #' Génère la matrice 3×3 croisant :
-#' - la probabilité d’occurrence attendue issue du modèle IPR (L1–L2–L3),
-#' - l’effectif réellement observé lors de l’opération (C1–C2–C3).
+#' - la probabilité d’occurrence attendue (L1–L2–L3),
+#' - l’effectif réellement observé (C1–C2–C3),
+#' uniquement sur les taxons contributifs de l’IPR.
 #'
-#' Seuls les taxons contributifs de l’IPR sont utilisés (liste codée en dur).
-#' Chaque cellule affiche une étiquette multilignes regroupant les taxons présents
-#' sous la forme : `"Nom (effectif)"`.
+#' Permet :
+#' - d'afficher ou masquer les titres et valeurs d'axes,
+#' - personnaliser les tailles de textes,
+#' - personnaliser l'épaisseur des bordures,
+#' - fournir un titre ou non,
+#' - **exclure des typologies d'opérations** via `libelle_qualification_operation`.
 #'
-#' La fonction est entièrement paramétrable :
-#' - contrôle de la taille des labels internes,
-#' - contrôle de la taille des textes et titres d’axes,
-#' - possibilité d’afficher ou masquer les titres et/ou les valeurs d’axes,
-#' - personnalisation du titre du graphique et de l’épaisseur des bordures.
+#' @param yaml_path Chemin YAML de connexion PG
+#' @param code_operation Code d'opération ASPE (prioritaire si fourni)
+#' @param code_station Code Sandre (si code_operation NULL)
+#' @param code_point_prelevement_aspe CPP (si station NULL)
+#' @param seuil_attendu Seuils L1/L2/L3 (par défaut c(0.6,0.2))
+#' @param seuil_abondant Seuil C1 (par défaut 20)
+#' @param titre Titre optionnel
+#' @param size_labels Taille labels internes
+#' @param lineheight_labels Interligne labels internes
+#' @param size_axis_text Taille tick labels
+#' @param size_axis_title Taille titres axes
+#' @param size_title Taille du titre principal
+#' @param tile_border_size Épaisseur bordures
+#' @param show_axis_text Afficher valeurs axes ?
+#' @param show_axis_titles Afficher titres axes ?
+#' @param exclure_typologies Typologies ASPE à exclure (défaut "Incorrecte")
 #'
-#' Cette flexibilité permet notamment :
-#' - d’utiliser la fonction seule (axes complets visibles),
-#' - ou de l’intégrer dans une planche multi‑graphes avec axes communs
-#'   (en désactivant les titres des axes mais en conservant les valeurs).
-#'
-#' @param yaml_path Chemin du fichier YAML contenant les informations de connexion
-#'   à PostgreSQL.
-#' @param code_operation Code de l’opération ASPE dont la matrice IPR doit être
-#'   représentée.
-#'
-#' @param seuil_attendu Vecteur numérique de deux valeurs indiquant les seuils
-#'   haut et bas de probabilité pour définir les classes L1/L2/L3.
-#'   Par défaut `c(0.6, 0.2)`.
-#' @param seuil_abondant Seuil d’effectif au‑delà duquel la catégorie C1
-#'   (abondant) est attribuée. Par défaut `20`.
-#'
-#' @param titre Titre optionnel du graphique. Si `NULL`, aucun titre n’est ajouté.
-#'
-#' @param size_labels Taille des textes affichés dans les tuiles.
-#' @param lineheight_labels Interligne pour les labels internes à chaque tuile.
-#'
-#' @param size_axis_text Taille des valeurs d’axes (ticks).
-#' @param size_axis_title Taille des titres des axes (si affichés).
-#' @param size_title Taille du titre du graphique (si affiché).
-#' @param tile_border_size Épaisseur du contour des tuiles.
-#'
-#' @param show_axis_text Logique : afficher (`TRUE`) ou non (`FALSE`) les valeurs
-#'   des axes X et Y. Utile pour conserver les valeurs d’axes dans des planches
-#'   multi‑vignettes.
-#' @param show_axis_titles Logique : afficher (`TRUE`) ou non (`FALSE`) les titres
-#'   des axes. Généralement mis à `FALSE` dans les planches où les titres sont
-#'   mutualisés.
-#'
-#' @return Un objet **ggplot2** représentant la heatmap 3×3.
-#'
-#' @examples
-#' \dontrun{
-#' # Appel simple avec axes complets :
-#' ipr_heatmap_3x3("config.yml", code_operation = 38673)
-#'
-#' # Appel pour intégration dans une planche (axes mutualisés) :
-#' ipr_heatmap_3x3(
-#'   "config.yml",
-#'   38673,
-#'   show_axis_titles = FALSE,
-#'   show_axis_text   = TRUE
-#' )
-#' }
-#'
+#' @return Un ggplot2 3×3
 #' @export
 ipr_heatmap_3x3 <- function(
   yaml_path,
@@ -82,52 +48,59 @@ ipr_heatmap_3x3 <- function(
   size_title      = 14,
   tile_border_size = 1.1,
   show_axis_text   = TRUE,
-  show_axis_titles = TRUE
+  show_axis_titles = TRUE,
+  exclure_typologies = c("Incorrecte")
 ){
   `%||%` <- function(x, y) if (!is.null(x)) x else y
 
-  # --- Connexion ---
+  
+  # Connexion
+  
   con <- connect_pg(yaml_path)
   on.exit(try(DBI::dbDisconnect(con), silent=TRUE), add=TRUE)
 
-  # ------------------------------------------------------------------
-  # 1) DÉTERMINER LE CODE OPÉRATION (station / CPP / direct)
-  # ------------------------------------------------------------------
+  
+  # 1) Détermination du code opération
+  
   if (!is.null(code_operation)) {
+
     code_op <- code_operation
+
   } else {
-    
-    # --- Filtre station / CPP (comme plot_facies_importance) ----
+
+    # Station → prioritaire sur CPP
     if (!is.null(code_station)) {
-      filtre_sql <- "s.code_station = $1"; param1 <- code_station
+      filtre_sql <- "s.code_station = $1"
+      param1     <- code_station
     } else if (!is.null(code_point_prelevement_aspe)) {
-      filtre_sql <- "s.code_point_prelevement_aspe = $1"; param1 <- code_point_prelevement_aspe
+      filtre_sql <- "s.code_point_prelevement_aspe = $1"
+      param1     <- code_point_prelevement_aspe
     } else {
       stop("Veuillez fournir code_operation OU code_station OU code_point_prelevement_aspe.")
     }
 
-    # --- Récupération des opérations IPR associées ----
+    # Filtrage ICI sur typologies
     sql_ops <- glue::glue("
       SELECT o.code_operation
       FROM qe.aspe_operations o
       JOIN qe.aspe_stations s
         ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
       WHERE {filtre_sql}
+        AND NOT (o.libelle_qualification_operation = ANY($2))
         AND o.date_operation IS NOT NULL
       ORDER BY o.date_operation::date DESC;
     ")
 
-    ops <- DBI::dbGetQuery(con, sql_ops, params=list(param1))
-
+    ops <- DBI::dbGetQuery(con, sql_ops, params=list(param1, exclure_typologies))
     if (!nrow(ops)) return(NULL)
 
-    # ⚠️ On prend la dernière opération (comme make_ipr_planche)
+    # Toujours la dernière opération chronologiquement
     code_op <- ops$code_operation[1]
   }
 
-  # ------------------------------------------------------------------
-  # 2) Lecture du ipr_compl
-  # ------------------------------------------------------------------
+  
+  # 2) Lecture ipr_compl pour CETTE opération
+  
   compl <- DBI::dbGetQuery(
     con,
     "SELECT * FROM qe.aspe_ipr_compl WHERE code_operation=$1;",
@@ -135,21 +108,16 @@ ipr_heatmap_3x3 <- function(
   )
   if (!nrow(compl)) return(NULL)
 
-  # ------------------------------------------------------------------
-  # 3) Reste du code : inchangé, 100 % ton algorithme actuel
-  # ------------------------------------------------------------------
-
-  # (… tout ton code existant inchangé…)
-  # JE NE MODIFIE RIEN ICI volontairement
-  # sauf une seule ligne : remplacer "return(p)" par "return(p)" inchangé
   
-  # --- Groupes contributifs
+  # 3) Logique IPR — inchangée (ton algorithme exact)
+  
   IPR_GROUPS <- c(
     "ABL","ANG","BAF","BAM","BLN","BOU","BRX","CAX","CCO","CHX",
     "EPI","ESX","GAR","GOX","GRE","HOT","LOX","LOT","LPX","OBX",
     "PCH","PER","PES","PHX","PUX","ROT","SAN","SAT","SPI","SQX",
     "TAN","TOX","TRF","VAX"
   )
+
   NOMS <- c(
     "ABL"="Ablette","ANG"="Anguille","BAF"="Barbeau","BAM"="Barbeau mér.",
     "BLN"="Blageon","BOU"="Bouvière","BRX"="Brème sp.","CAX"="Carassin",
@@ -174,12 +142,13 @@ ipr_heatmap_3x3 <- function(
     })
   )
 
-  df <- df[!(df$eff==0 & df$prob < 0.05), ]
+  df <- df[!(df$eff == 0 & df$prob < 0.05), ]
 
-  df$ligne <- cut(df$prob,
-                  breaks=c(-Inf, seuil_attendu[2], seuil_attendu[1], Inf),
-                  labels=c("L3","L2","L1"),
-                  right=TRUE)
+  df$ligne <- cut(
+    df$prob,
+    breaks=c(-Inf, seuil_attendu[2], seuil_attendu[1], Inf),
+    labels=c("L3","L2","L1"), right=TRUE
+  )
 
   df$colonne <- dplyr::case_when(
     df$eff >= seuil_abondant             ~ "C1",
@@ -187,15 +156,20 @@ ipr_heatmap_3x3 <- function(
     df$eff == 0                          ~ "C3"
   )
 
-  df$label <- paste0(dplyr::recode(df$taxon, !!!NOMS),
-                     " (", df$eff, ")")
+  df$label <- paste0(
+    dplyr::recode(df$taxon, !!!NOMS),
+    " (", df$eff, ")"
+  )
 
-  grid <- expand.grid(ligne=c("L3","L2","L1"),
-                      colonne=c("C1","C2","C3"))
+  grid <- expand.grid(
+    ligne   = c("L3","L2","L1"),
+    colonne = c("C1","C2","C3")
+  )
+
   grid <- dplyr::left_join(
     grid,
-    df |> dplyr::group_by(ligne,colonne) |>
-      dplyr::summarise(label=paste(label, collapse="\n"), .groups="drop"),
+    df |> dplyr::group_by(ligne, colonne) |>
+      dplyr::summarise(label = paste(label, collapse="\n"), .groups="drop"),
     by=c("ligne","colonne")
   )
 
@@ -208,45 +182,55 @@ ipr_heatmap_3x3 <- function(
     TRUE ~ "#ffec8b"
   )
 
-  p <- ggplot2::ggplot(grid, aes(x=colonne, y=ligne)) +
-    ggplot2::geom_tile(aes(fill=fill_color),
-                       color="black", linewidth=tile_border_size) +
-    ggplot2::geom_text(aes(label=label),
-                       size=size_labels,
-                       lineheight=lineheight_labels,
-                       fontface="bold") +
+  p <- ggplot2::ggplot(grid, aes(x = colonne, y = ligne)) +
+    ggplot2::geom_tile(
+      aes(fill = fill_color),
+      color = "black", linewidth = tile_border_size
+    ) +
+    ggplot2::geom_text(
+      aes(label = label),
+      size       = size_labels,
+      lineheight = lineheight_labels,
+      fontface   = "bold"
+    ) +
     ggplot2::scale_fill_identity() +
     ggplot2::scale_x_discrete(
-      labels=c("C1"=paste0("Eff≥",seuil_abondant),
-               "C2"=paste0("0<Eff<",seuil_abondant),
-               "C3"="Eff = 0")
+      labels=c(
+        "C1"=paste0("Eff≥", seuil_abondant),
+        "C2"=paste0("0<Eff<", seuil_abondant),
+        "C3"="Eff = 0"
+      )
     ) +
     ggplot2::scale_y_discrete(
       labels=c(
-        "L1"=sprintf("Prob > %.2f",seuil_attendu[1]),
-        "L2"=sprintf("%.2f ≥ Prob > %.2f",seuil_attendu[1],seuil_attendu[2]),
-        "L3"=sprintf("0 < Prob ≤ %.2f",seuil_attendu[2])
+        "L1"=sprintf("Prob > %.2f", seuil_attendu[1]),
+        "L2"=sprintf("%.2f ≥ Prob > %.2f", seuil_attendu[1], seuil_attendu[2]),
+        "L3"=sprintf("0 < Prob ≤ %.2f",  seuil_attendu[2])
       )
     ) +
     ggplot2::theme_minimal() +
-    labs(y="Probabilité selon IPR",
-         x="Effectif observé") +
     ggplot2::theme(
-      axis.text.x  = if (show_axis_text) ggplot2::element_text(size=size_axis_text)
-                     else ggplot2::element_blank(),
-      axis.text.y  = if (show_axis_text) ggplot2::element_text(size=size_axis_text)
-                     else ggplot2::element_blank(),
+      axis.text.x = if (show_axis_text) ggplot2::element_text(size=size_axis_text)
+                    else ggplot2::element_blank(),
+      axis.text.y = if (show_axis_text) ggplot2::element_text(size=size_axis_text)
+                    else ggplot2::element_blank(),
       axis.title.x = if (show_axis_titles) ggplot2::element_text(size=size_axis_title, face="bold")
                      else ggplot2::element_blank(),
       axis.title.y = if (show_axis_titles) ggplot2::element_text(size=size_axis_title, face="bold")
                      else ggplot2::element_blank()
+    ) +
+    ggplot2::labs(
+      x = "Effectif observé",
+      y = "Probabilité selon IPR"
     )
 
   if (!is.null(titre)) {
-    p <- p + ggplot2::ggtitle(titre) +
-      ggplot2::theme(plot.title=ggplot2::element_text(size=size_title, face="bold"))
+    p <- p +
+      ggplot2::ggtitle(titre) +
+      ggplot2::theme(plot.title = ggplot2::element_text(
+        size = size_title, face="bold"
+      ))
   }
 
   return(p)
 }
-

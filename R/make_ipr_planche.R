@@ -2,19 +2,33 @@
 
 #' Planche synthèse IPR (notes, effectifs, métriques)
 #'
-#' @param yaml_path Chemin du YAML de connexion
-#' @param station Code Sandre
-#' @param annee_debut Année de début (défaut 1950)
-#' @param annee_fin Année de fin (défaut = année courante)
-#' @param indicateurs Vecteur d'indicateurs pour les métriques
-#' @param schema Schéma SQL (défaut "qe")
-#' @param titre Titre principal (défaut: "<station> — Synthèse IPR")
-#' @param sous_titre Sous-titre
-#' @param file_out Fichier PNG en sortie
-#' @param width,height,dpi Format du PNG
-#' @param n_last Nombre d'opérations (dates distinctes)
+#' Crée une planche complète combinant :
+#' - histogramme des notes IPR,
+#' - histogramme des effectifs,
+#' - histogramme des métriques IPR (observé vs modélisé).
 #'
-#' @return Un ggplot/cowplot ou NULL
+#' Toutes les opérations dont la qualification (`libelle_qualification_operation`
+#' dans la table `aspe_operations`) appartient au vecteur
+#' `exclure_typologies` sont exclues.
+#'
+#' @param yaml_path Chemin du fichier YAML de connexion PostgreSQL.
+#' @param station Code Sandre de la station.
+#' @param annee_debut Année de début (défaut `1950`).
+#' @param annee_fin Année de fin (défaut = année courante).
+#' @param indicateurs Vecteur d'indicateurs IPR (défaut :
+#'   `c("DII","DIO","DIT","DTI","NEL","NER","NTE")`).
+#' @param schema Schéma SQL contenant les tables IPR (défaut `"qe"`).
+#' @param titre Titre principal (généré automatiquement si `NULL`).
+#' @param sous_titre Sous-titre (généré automatiquement si `NULL`).
+#' @param file_out Fichier PNG de sortie. Si `NULL`, aucun export.
+#' @param width Largeur du PNG (en pouces).
+#' @param height Hauteur du PNG (en pouces).
+#' @param dpi Résolution du PNG.
+#' @param n_last Nombre maximum de dates de campagnes à afficher (défaut : 12).
+#' @param exclure_typologies Vecteur des typologies d'opération à exclure
+#'   (défaut : `"Incorrecte"`).
+#'
+#' @return Un objet ggplot/cowplot représentant la planche, ou `NULL` si aucune donnée.
 #' @export
 make_ipr_planche <- function(
   yaml_path,
@@ -29,67 +43,59 @@ make_ipr_planche <- function(
   width = 29.7 / 2.54,
   height = 21 / 2.54,
   dpi = 300,
-  n_last = 12
+  n_last = 12,
+  exclure_typologies = c("Incorrecte")   # <-- NOUVEAU
 ){
   require(DBI); require(glue); require(cowplot)
   `%||%` <- function(x, y) if (!is.null(x)) x else y
 
-  # --------------------------------------------------------------------
-  # 1) Titre automatique
-  # --------------------------------------------------------------------
-  # if (is.null(titre)) 
-  #   titre <- glue::glue("{station} — Synthèse IPR")
-  # if (is.null(sous_titre))
-  #   sous_titre <- glue::glue("Synthèse réalisée le {format(Sys.Date(), '%d/%m/%Y')} par Eaux & Vilaine")
 
   # Connexion
-con <- connect_pg(yaml_path)
-on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
-# Récup meta + titres auto si manquants (comme habitats)
-info_titres <- .aspe_fetch_meta_and_titles(
-  con = con,
-  schema = schema %||% "qe",
-  station = station,
-  code_point_prelevement_aspe = NULL,  # IPR = station-based
-  default_title_suffix = " — Synthèse IPR",
-  default_subtitle_prefix = "Synthèse réalisée le "
-)
+  con <- connect_pg(yaml_path)
+  on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
-if (is.null(titre)) {
-  titre <- info_titres$titre_auto
-}
-if (is.null(sous_titre)) {
-  sous_titre <- info_titres$sous_titre_auto
-}
-  
-  
-  # --------------------------------------------------------------------
-  # 2) Connexion & sécurisation schéma
-  # --------------------------------------------------------------------
-  # con <- connect_pg(yaml_path)
-  # on.exit(try(DBI::dbDisconnect(con), silent=TRUE), add=TRUE)
+
+  # Génération des titres automatiques via meta
+
+  info_titres <- .aspe_fetch_meta_and_titles(
+    con = con,
+    schema = schema %||% "qe",
+    station = station,
+    code_point_prelevement_aspe = NULL,
+    default_title_suffix = " — Synthèse IPR",
+    default_subtitle_prefix = "Synthèse réalisée le "
+  )
+
+  if (is.null(titre))      titre      <- info_titres$titre_auto
+  if (is.null(sous_titre)) sous_titre <- info_titres$sous_titre_auto
 
   schema_safe <- sanitize_schema(schema)
-  tbl_ipr <- sprintf('"%s".aspe_ipr',       schema_safe)
-  tbl_ops <- sprintf('"%s".aspe_operations',schema_safe)
-  tbl_ipr_compl <- sprintf('"%s".aspe_ipr_compl', schema_safe)
+  tbl_ipr_compl <- sprintf('"%s".aspe_ipr_compl',  schema_safe)
+  tbl_ops       <- sprintf('"%s".aspe_operations', schema_safe)
 
-  # --------------------------------------------------------------------
-  # 3) Extraction des opérations IPR pour la station
-  # --------------------------------------------------------------------
+
+  # Extraction des opérations IPR pour la station + EXCLUSION TYPOLOGIES
+
   sql_ops <- glue::glue("
     SELECT c.code_operation, o.date_operation
     FROM {tbl_ipr_compl} c
     JOIN {tbl_ops} o
       ON c.code_operation = o.code_operation
     WHERE c.code_station = $1
+      AND NOT (o.libelle_qualification_operation = ANY($2))
   ")
 
-  ops <- DBI::dbGetQuery(con, sql_ops, params=list(station))
+  ops <- DBI::dbGetQuery(
+    con,
+    sql_ops,
+    params = list(station, exclure_typologies)  # <-- NOUVEAU
+  )
   if (!nrow(ops)) return(NULL)
 
-  # Correction parsing date ISO/hubeau
+
+  # Parsing dates ISO
+
   parse_iso <- function(x){
     x2 <- gsub("Z$", "+00:00", x)
     out <- suppressWarnings(as.POSIXct(x2, format="%Y-%m-%dT%H:%M:%OS%z"))
@@ -98,29 +104,29 @@ if (is.null(sous_titre)) {
     out
   }
 
-  ops$dt <- parse_iso(ops$date_operation)
+  ops$dt    <- parse_iso(ops$date_operation)
   ops$annee <- as.integer(format(ops$dt,"%Y"))
 
+  # Filtre années
   ops <- ops[ops$annee >= annee_debut & ops$annee <= annee_fin, ]
   if (!nrow(ops)) return(NULL)
 
-  # Trier : du plus récent → plus ancien → n_last → re-tri
-  ops <- ops[order(ops$dt, decreasing=TRUE), ]
+  # Garder les n dernières opérations
+  ops <- ops[order(ops$dt, decreasing = TRUE), ]
   ops <- ops[seq_len(min(n_last, nrow(ops))), ]
   ops <- ops[order(ops$dt), ]
 
-  fmt_date <- function(x) format(x,"%d/%m/%y")
 
-  # --------------------------------------------------------------------
-  # 4) Génération des vignettes : histogramme IPR, effectifs, métriques
-  # --------------------------------------------------------------------
+  # Génération des vignettes (avec exclusion typologies)
+
   graph_ipr <- plot_ipr_histogram(
     yaml_path = yaml_path,
     station   = station,
     annee_debut = annee_debut,
     annee_fin   = annee_fin,
     schema      = schema_safe,
-    n_last      = n_last
+    n_last      = n_last,
+    exclure_typologies = exclure_typologies   # <-- NOUVEAU
   )
 
   graph_eff <- plot_effectifs_histogram(
@@ -130,7 +136,8 @@ if (is.null(sous_titre)) {
     annee_fin   = annee_fin,
     schema      = schema_safe,
     only_with_ipr = TRUE,
-    n_last      = n_last
+    n_last      = n_last,
+    exclure_typologies = exclure_typologies   # <-- NOUVEAU
   )
 
   graph_met <- plot_ipr_metrics(
@@ -140,20 +147,21 @@ if (is.null(sous_titre)) {
     annee_debut = annee_debut,
     annee_fin   = annee_fin,
     schema      = schema_safe,
-    n_last      = n_last
+    n_last      = n_last,
+    exclure_typologies = exclure_typologies   # <-- NOUVEAU
   )
 
-  if (is.null(graph_ipr) && is.null(graph_eff) && is.null(graph_met))
+  if (is.null(graph_ipr) & is.null(graph_eff) & is.null(graph_met))
     return(NULL)
 
-  # --------------------------------------------------------------------
-  # 5) Mise en page cowplot (inchangée)
-  # --------------------------------------------------------------------
+
+  # Mise en page
+
   title_gg <- ggplot2::ggplot() +
     ggplot2::labs(title = titre, subtitle = sous_titre) +
     ggplot2::theme_void() +
     ggplot2::theme(
-      plot.title    = ggplot2::element_text(size = 16, face="bold", hjust = 0.5),
+      plot.title    = ggplot2::element_text(size = 16, face = "bold", hjust = 0.5),
       plot.subtitle = ggplot2::element_text(size = 11, hjust = 0.5)
     )
 
@@ -170,9 +178,9 @@ if (is.null(sous_titre)) {
     rel_heights = c(0.40, 1, 2)
   )
 
-  # --------------------------------------------------------------------
-  # 6) Export PNG
-  # --------------------------------------------------------------------
+
+  # Export PNG éventuel
+
   if (!is.null(file_out)) {
     cowplot::save_plot(
       filename = file_out,

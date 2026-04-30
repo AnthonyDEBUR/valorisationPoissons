@@ -18,40 +18,53 @@ plot_faune_heatmap(
   file_out = NULL,
   width = 29.7/2.54,
   height = 21/2.54,
-  dpi = 300
+  dpi = 300,
+  exclure_typologies = c("Incorrecte")
 )
 }
 \arguments{
-\item{yaml_path}{Chemin du fichier YAML contenant la connexion PostgreSQL}
+\item{yaml_path}{Chemin du YAML de connexion PostgreSQL}
 
-\item{code_station}{Code Sandre de la station (optionnel)}
+\item{schema}{Schéma SQL (défaut "qe")}
 
-\item{code_point_prelevement_aspe}{Code ASPE du point de prélèvement (optionnel)}
+\item{code_station}{Code Sandre (si fourni, prioritaire)}
 
-\item{annee_debut}{Année minimale (défaut = 1950)}
+\item{code_point_prelevement_aspe}{Code ASPE si \code{code_station} est NULL}
 
-\item{annee_fin}{Année maximale (défaut = année courante)}
+\item{annee_debut}{Année minimale (défaut 1950)}
 
-\item{n_last}{Nombre de dernières opérations (dates distinctes) à conserver.
-NULL = toutes (défaut).}
+\item{annee_fin}{Année maximale (défaut année courante)}
 
-\item{fill_colors}{Vecteur de couleurs pour le dégradé. Défaut = séquentiel bleu.}
+\item{n_last}{Nombre de dernières opérations distinctes (NULL = toutes)}
 
-\item{titre}{Titre du graphique. Par défaut "Effectif — \if{html}{\out{<code>}}" (station ou point ASPE).}
+\item{fill_colors}{Palette du dégradé}
 
-\item{sous_titre}{Sous-titre du graphique (optionnel)}
+\item{titre}{Titre du graphique (défaut auto)}
 
-\item{file_out}{Chemin de sauvegarde (PNG) si non NULL}
+\item{sous_titre}{Sous-titre (défaut auto)}
 
-\item{width}{Largeur (pouces), défaut A4 paysage}
+\item{file_out}{Export PNG (optionnel)}
 
-\item{height}{Hauteur (pouces), défaut A4 paysage}
+\item{width}{Hauteur du PNG}
 
-\item{dpi}{DPI pour l'export}
+\item{height}{Largeur du PNG}
+
+\item{dpi}{DPI}
+
+\item{exclure_typologies}{Vecteur des typologies à exclure}
 }
 \value{
-Un objet ggplot2 représentant la heatmap
+Un objet ggplot2 (heatmap)
 }
 \description{
-Heatmap faunistique (ASPE) – Abondances par date et taxon regroupé
+Produit une heatmap des effectifs de poissons capturés par opération,
+regroupés par taxon et par date, avec :
+\itemize{
+\item station OU CPP,
+\item n dernières dates,
+\item regroupements taxonomiques standardisés,
+\item affichage des valeurs (effectifs) + échelle log10,
+\item exclusion optionnelle de typologies d'opérations via
+\code{libelle_qualification_operation} (ex. "Incorrecte").
+}
 }

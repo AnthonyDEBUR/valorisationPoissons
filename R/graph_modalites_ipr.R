@@ -65,11 +65,11 @@ graph_modalites_ipr <- function(text_size = 4,
   library(dplyr)
   library(ggplot2)
   library(stringr)
-  library(ggtext)   # <-- nécessaire pour le gras
+  library(ggtext)   # <- nécessaire pour le gras
 
-  # -------------------------------------------------------
+ 
   # 5 VECTEURS CODÉS EN DUR — taxons contributeurs IPR
-  # -------------------------------------------------------
+
   vec_reophile    <- c("BLN","LOT","VAX","BAF","BAM","HOT","TOX","CHX","OBX","SAT","SPI","TRF")
   vec_lithophile  <- c("LPX","PHX","BAF","BAM","HOT","TOX","PCH","CHX","OBX","SAT","SPI","TRF")
   vec_invertivore <- c("ANG","GOX","GRE","PES","PCH","CHX","OBX","SAT","SPI","TRF")
@@ -97,9 +97,9 @@ graph_modalites_ipr <- function(text_size = 4,
     ) %>%
     ungroup()
 
-  # -------------------------------------------------------
+
   # Graphique avec RICH TEXT
-  # -------------------------------------------------------
+
   p <- ggplot(df, aes(y = rev(modalite), x = 1)) +
     ggtext::geom_richtext(
       aes(label = ligne),

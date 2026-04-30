@@ -2,7 +2,7 @@
 % Please edit documentation in R/plot_largeur_lame_eau_pechee_histogram.R
 \name{plot_largeur_lame_eau_pechee_histogram}
 \alias{plot_largeur_lame_eau_pechee_histogram}
-\title{Histogramme des largeurs de pêche ASPE pour une station}
+\title{Histogramme des largeurs de pêche ASPE pour une station ou un CPP}
 \usage{
 plot_largeur_lame_eau_pechee_histogram(
   yaml_path,
@@ -12,68 +12,45 @@ plot_largeur_lame_eau_pechee_histogram(
   annee_fin = as.integer(format(Sys.Date(), "\%Y")),
   n_last = 10,
   titre = "Largeur lame d'eau (m)",
-  schema = "qe"
+  schema = "qe",
+  exclure_typologies = c("Incorrecte")
 )
 }
 \arguments{
-\item{yaml_path}{Chemin vers le fichier YAML contenant les informations de
-connexion PostgreSQL.}
+\item{yaml_path}{Chemin du YAML de connexion PostgreSQL.}
 
-\item{code_station}{[\code{character(1)}]\
-Code Sandre de la station. Si renseigné conjointement avec
-\code{code_point_prelevement_aspe}, il est prioritaire (avec warning).}
+\item{code_station}{Code Sandre (prioritaire si renseigné).}
 
-\item{code_point_prelevement_aspe}{[\code{character(1)}]\
-Code du point de prélèvement ASPE utilisé si \code{code_station} n'est pas fourni.}
+\item{code_point_prelevement_aspe}{Code ASPE utilisé si \code{code_station} est \code{NULL}.}
 
-\item{annee_debut}{[\code{numeric(1)}]\
-Année minimale des opérations à prendre en compte (défaut : 1950).}
+\item{annee_debut}{Année minimale (défaut : 1950).}
 
-\item{annee_fin}{[\code{numeric(1)}]\
-Année maximale (défaut : année courante).}
+\item{annee_fin}{Année maximale (défaut : année courante).}
 
-\item{n_last}{[\code{integer(1)}]\
-Nombre de dernières dates d’opérations (distinctes) à représenter.}
+\item{n_last}{Nombre de dernières dates distinctes à afficher (défaut : 10).}
 
-\item{titre}{[\code{character(1)}]\
-Titre du graphique (défaut : \code{"Prof. moy. station (m)"}).}
+\item{titre}{Titre du graphique (défaut : \code{"Largeur lame d'eau (m)"}).}
+
+\item{schema}{Schéma SQL (défaut \code{"qe"}).}
+
+\item{exclure_typologies}{Vecteur des typologies \strong{à exclure} (défaut \code{"Incorrecte"}).}
 }
 \value{
-Un objet ggplot2 représentant un histogramme des profondeurs
-de prélèvement. Retourne \code{NULL} si aucune donnée n’est disponible.
+Un objet ggplot2 ou \code{NULL} si aucune donnée.
 }
 \description{
-Cette fonction interroge la base ASPE via un fichier YAML de connexion et
-extrait les largeur lame d'eau (\code{largeur_lame_eau}) issues de la table
-\code{qe.aspe_operations} pour une station donnée (via \code{code_station}) ou pour un
-point ASPE (\code{code_point_prelevement_aspe}).
+Extrait les largeurs de lame d'eau (\code{largeur_lame_eau}) depuis la table
+\code{aspe_operations}, pour une station (\code{code_station}) ou un point CPP
+(\code{code_point_prelevement_aspe}).
+Les données sont filtrées :
+\itemize{
+\item par période (\code{annee_debut} – \code{annee_fin}) ;
+\item par typologies \strong{exclues} via \code{libelle_qualification_operation}
+(paramètre \code{exclure_typologies}) ;
+\item par les \code{n_last} dernières dates distinctes.
+}
 }
 \details{
-Si les deux identifiants sont fournis, \code{code_station} est prioritaire et un
-warning est renvoyé.
-
-Les données sont filtrées entre \code{annee_debut} et \code{annee_fin}, puis seules les
-\code{n_last} dernières dates d’opération distinctes sont conservées.
-
-La fonction produit un graphique ggplot2 de type histogramme (barres verticales)
-où la hauteur des barres représente la profondeur (en mètres).
-Les dates sont affichées au format \\%d/\\%m/\\%y, ordonnées chronologiquement,
-et pivoteées de 90° pour faciliter la lecture.
-
-La table interrogée est : \code{qe.aspe_operations}, champ \code{profondeur}.
-
-Les dates d’opération (\code{date_operation}) sont converties en classe \code{Date},
-puis ordonnées avant d’être transformées en facteur pour un affichage
-strictement chronologique dans le graphique.
-}
-\examples{
-\dontrun{
-plot_largeur_lame_eau_pechee_histogram(
- yaml_path = "C:/workspace/gwilenalim/yaml/config.yml",
- code_station = "04216050",
- annee_debut  = 2000,
- annee_fin    = 2025
-)
-}
-
+Produit un histogramme ggplot2 où chaque barre représente une largeur de
+lame d'eau observée.
 }

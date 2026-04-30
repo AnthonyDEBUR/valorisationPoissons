@@ -17,35 +17,54 @@ make_ipr_planche(
   width = 29.7/2.54,
   height = 21/2.54,
   dpi = 300,
-  n_last = 12
+  n_last = 12,
+  exclure_typologies = c("Incorrecte")
 )
 }
 \arguments{
-\item{yaml_path}{Chemin du YAML de connexion}
+\item{yaml_path}{Chemin du fichier YAML de connexion PostgreSQL.}
 
-\item{station}{Code Sandre}
+\item{station}{Code Sandre de la station.}
 
-\item{annee_debut}{Année de début (défaut 1950)}
+\item{annee_debut}{Année de début (défaut \code{1950}).}
 
-\item{annee_fin}{Année de fin (défaut = année courante)}
+\item{annee_fin}{Année de fin (défaut = année courante).}
 
-\item{indicateurs}{Vecteur d'indicateurs pour les métriques}
+\item{indicateurs}{Vecteur d'indicateurs IPR (défaut :
+\code{c("DII","DIO","DIT","DTI","NEL","NER","NTE")}).}
 
-\item{schema}{Schéma SQL (défaut "qe")}
+\item{schema}{Schéma SQL contenant les tables IPR (défaut \code{"qe"}).}
 
-\item{titre}{Titre principal (défaut: "\if{html}{\out{<station>}} — Synthèse IPR")}
+\item{titre}{Titre principal (généré automatiquement si \code{NULL}).}
 
-\item{sous_titre}{Sous-titre}
+\item{sous_titre}{Sous-titre (généré automatiquement si \code{NULL}).}
 
-\item{file_out}{Fichier PNG en sortie}
+\item{file_out}{Fichier PNG de sortie. Si \code{NULL}, aucun export.}
 
-\item{width, height, dpi}{Format du PNG}
+\item{width}{Largeur du PNG (en pouces).}
 
-\item{n_last}{Nombre d'opérations (dates distinctes)}
+\item{height}{Hauteur du PNG (en pouces).}
+
+\item{dpi}{Résolution du PNG.}
+
+\item{n_last}{Nombre maximum de dates de campagnes à afficher (défaut : 12).}
+
+\item{exclure_typologies}{Vecteur des typologies d'opération à exclure
+(défaut : \code{"Incorrecte"}).}
 }
 \value{
-Un ggplot/cowplot ou NULL
+Un objet ggplot/cowplot représentant la planche, ou \code{NULL} si aucune donnée.
 }
 \description{
-Planche synthèse IPR (notes, effectifs, métriques)
+Crée une planche complète combinant :
+\itemize{
+\item histogramme des notes IPR,
+\item histogramme des effectifs,
+\item histogramme des métriques IPR (observé vs modélisé).
+}
+}
+\details{
+Toutes les opérations dont la qualification (\code{libelle_qualification_operation}
+dans la table \code{aspe_operations}) appartient au vecteur
+\code{exclure_typologies} sont exclues.
 }
