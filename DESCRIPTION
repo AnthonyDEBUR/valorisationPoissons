@@ -8,11 +8,31 @@ License: MIT + file LICENSE
 URL: https://github.com/AnthonyDEBUR/valorisationPoissons
 BugReports: https://github.com/AnthonyDEBUR/valorisationPoissons/issues
 Imports: 
-    magrittr
+    cowplot,
+    DBI,
+    dplyr,
+    forcats,
+    ggnewscale,
+    ggplot2,
+    ggtext,
+    glue,
+    lubridate,
+    magrittr,
+    purrr,
+    RPostgres,
+    scales,
+    stats,
+    stringi,
+    stringr,
+    tibble,
+    tidyr,
+    yaml
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: 
+    knitr
+Config/fusen/version: 0.7.2
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
-Suggests: 
-    knitr
-VignetteBuilder: knitr
-Config/fusen/version: 0.7.2

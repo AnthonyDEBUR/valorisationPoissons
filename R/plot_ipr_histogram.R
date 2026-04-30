@@ -41,6 +41,8 @@ plot_ipr_histogram <- function(
 
   # 2) Requête SQL avec exclusion typologies
 
+  placeholders <- paste(rep("?", length(exclure_typologies)), collapse = ",")
+  
   sql <- glue::glue("
     WITH ipr_explicit AS (
       SELECT
@@ -70,19 +72,17 @@ plot_ipr_histogram <- function(
       ON op.code_operation = e.code_operation
     WHERE EXTRACT(YEAR FROM op.date_operation::timestamptz)
           BETWEEN $2 AND $3
-      AND NOT (op.libelle_qualification_operation = ANY($4))
+      AND op.libelle_qualification_operation NOT IN ({placeholders})
     ORDER BY date_op;
   ")
 
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(
-      station,
-      as.integer(annee_debut),
-      as.integer(annee_fin),
-      exclure_typologies          # ← transmission du vecteur
-    )
+    params = c(list(station, 
+                    annee_debut, 
+                    annee_fin), 
+               as.list(exclure_typologies))
   )
 
   if (!nrow(df)) return(invisible(NULL))
