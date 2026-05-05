@@ -187,7 +187,7 @@ graph_descriptif_operation <- function(
       color_group = type,
       date_label = factor(
         format(date_op, "%d/%m/%y"),
-        levels = rev(unique(format(last_dates$date_op, "%d/%m/%y")))
+        levels = unique(format(last_dates$date_op, "%d/%m/%y"))
       )
     )
 
