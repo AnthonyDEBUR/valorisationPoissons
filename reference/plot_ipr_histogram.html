@@ -32,7 +32,7 @@
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu"><li>
-      <a href="../articles/get-started.html">Get started</a>
+      <a href="../articles/valorisationPoissons_pr%C3%A9paration_images_RPubs.html">valorisationPoissons — Exemples illustrés (RPubs)</a>
     </li>
     <li>
       <a href="../articles/valorisationPoissons_RPubs.html">valorisationPoissons — Illustrations et usages</a>
@@ -74,7 +74,8 @@
 <span>  schema <span class="op">=</span> <span class="st">"qe"</span>,</span>
 <span>  title <span class="op">=</span> <span class="st">"Notes IPR"</span>,</span>
 <span>  bar_width <span class="op">=</span> <span class="fl">0.9</span>,</span>
-<span>  n_last <span class="op">=</span> <span class="fl">12</span></span>
+<span>  n_last <span class="op">=</span> <span class="fl">12</span>,</span>
+<span>  exclure_typologies <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Incorrecte"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -87,7 +88,7 @@
 
 
 <dt id="arg-station">station<a class="anchor" aria-label="anchor" href="#arg-station"></a></dt>
-<dd><p>Code Sandre de la station (ex. "04199200")</p></dd>
+<dd><p>Code Sandre de la station</p></dd>
 
 
 <dt id="arg-annee-debut">annee_debut<a class="anchor" aria-label="anchor" href="#arg-annee-debut"></a></dt>
@@ -95,11 +96,11 @@
 
 
 <dt id="arg-annee-fin">annee_fin<a class="anchor" aria-label="anchor" href="#arg-annee-fin"></a></dt>
-<dd><p>Année de fin (défaut = année courante)</p></dd>
+<dd><p>Année de fin</p></dd>
 
 
 <dt id="arg-schema">schema<a class="anchor" aria-label="anchor" href="#arg-schema"></a></dt>
-<dd><p>Schéma SQL (défaut "qe")</p></dd>
+<dd><p>Schéma SQL</p></dd>
 
 
 <dt id="arg-title">title<a class="anchor" aria-label="anchor" href="#arg-title"></a></dt>
@@ -111,13 +112,15 @@
 
 
 <dt id="arg-n-last">n_last<a class="anchor" aria-label="anchor" href="#arg-n-last"></a></dt>
-<dd><p>Nombre maximum de campagnes (dates distinctes)</p></dd>
+<dd><p>Nombre max de campagnes</p></dd>
+
+
+<dt id="arg-exclure-typologies">exclure_typologies<a class="anchor" aria-label="anchor" href="#arg-exclure-typologies"></a></dt>
+<dd><p>Vecteur des typologies d'opérations à exclure
+(défaut = "Incorrecte", les autres typologies sont "Incertaine",
+"Non qualifié" et "Correcte")</p></dd>
 
 </dl></div>
-    <div id="value">
-    <h2>Value</h2>
-    <p>Un objet ggplot2</p>
-    </div>
 
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">

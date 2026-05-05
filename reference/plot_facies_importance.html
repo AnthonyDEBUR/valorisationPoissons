@@ -32,7 +32,7 @@
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu"><li>
-      <a href="../articles/get-started.html">Get started</a>
+      <a href="../articles/valorisationPoissons_pr%C3%A9paration_images_RPubs.html">valorisationPoissons — Exemples illustrés (RPubs)</a>
     </li>
     <li>
       <a href="../articles/valorisationPoissons_RPubs.html">valorisationPoissons — Illustrations et usages</a>
@@ -57,7 +57,7 @@
   <div class="col-md-9 contents">
     <div class="page-header">
     <h1>Histogramme des faciès (Courant / Plat / Profond)</h1>
-    <small class="dont-index">Source: <a href="https://github.com/AnthonyDEBUR/valorisationPoissons/blob/master/R/plot_facies_importance.R" class="external-link"><code>R/plot_facies_importance.R</code></a></small>
+    <small class="dont-index">Source: <a href="https://github.com/AnthonyDEBUR/valorisationPoissons/blob/master/R/plot_facies_profondeur_histogram.R" class="external-link"><code>R/plot_facies_profondeur_histogram.R</code></a></small>
     <div class="hidden name"><code>plot_facies_importance.Rd</code></div>
     </div>
 
@@ -71,8 +71,9 @@
 <span>  code_station <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  code_point_prelevement_aspe <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  annee_debut <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  annee_fin <span class="op">=</span> <span class="fu">lubridate</span><span class="fu">::</span><span class="fu">year</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  n_last <span class="op">=</span> <span class="fl">12</span></span>
+<span>  annee_fin <span class="op">=</span> <span class="fu">lubridate</span><span class="fu">::</span><span class="fu"><a href="https://lubridate.tidyverse.org/reference/year.html" class="external-link">year</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  n_last <span class="op">=</span> <span class="fl">12</span>,</span>
+<span>  exclure_typologies <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Incorrecte"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -103,6 +104,11 @@
 <dt id="arg-n-last">n_last<a class="anchor" aria-label="anchor" href="#arg-n-last"></a></dt>
 <dd><p>Nombre d'opérations (dates distinctes) à afficher</p></dd>
 
+
+<dt id="arg-exclure-typologies">exclure_typologies<a class="anchor" aria-label="anchor" href="#arg-exclure-typologies"></a></dt>
+<dd><p>Vecteur des typologies d’opérations à exclure
+(défaut <code>"Incorrecte"</code>).</p></dd>
+
 </dl></div>
     <div id="value">
     <h2>Value</h2>
@@ -112,7 +118,7 @@
     <div id="ref-examples">
     <h2>Examples</h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
-<span class="r-in"><span><span class="fu">plot_facies_importance</span><span class="op">(</span><span class="st">".../config.yml"</span>, code_station <span class="op">=</span> <span class="st">"04207400"</span>, annee_debut <span class="op">=</span> <span class="fl">1950</span>, n_last <span class="op">=</span> <span class="fl">12</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">plot_facies_importance</span><span class="op">(</span><span class="st">".../config.yml"</span>, code_station <span class="op">=</span> <span class="st">"04207400"</span>, annee_debut <span class="op">=</span> <span class="fl">1950</span>, n_last <span class="op">=</span> <span class="fl">12</span><span class="op">)</span><span class="co">#' plot_facies_importance(".../config.yml", code_station = "04207400", annee_debut = 1950, n_last = 12)</span></span></span>
 <span class="r-in"><span><span class="op">}</span> <span class="co"># }</span></span></span>
 </code></pre></div>
     </div>
