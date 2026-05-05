@@ -6,6 +6,7 @@
 \usage{
 plot_facies_importance(
   yaml_path,
+  schema = "qe",
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
   annee_debut = NULL,
@@ -29,6 +30,8 @@ plot_facies_importance(
 
 \item{exclure_typologies}{Vecteur des typologies d’opérations à exclure
 (défaut \code{"Incorrecte"}).}
+
+\item{shema}{de la bdd contenant els données (par défaut qe)}
 }
 \value{
 Un \code{ggplot2} (ou \code{NULL} si aucune donnée)

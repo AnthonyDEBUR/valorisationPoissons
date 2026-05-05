@@ -172,6 +172,7 @@ plot_facies_profondeur_histogram <- function(
 #' Histogramme des faciès (Courant / Plat / Profond)
 #'
 #' @param yaml_path Chemin YAML
+#' @param shema de la bdd contenant els données (par défaut qe)
 #' @param code_station Code Sandre de la station (ou NULL si `code_point_prelevement_aspe` fourni)
 #' @param code_point_prelevement_aspe Code du point ASPE (ou NULL si `code_station` fourni)
 #' @param annee_debut Année de début (défaut 1900)
@@ -189,6 +190,7 @@ plot_facies_profondeur_histogram <- function(
 #' @export
 plot_facies_importance <- function(
   yaml_path,
+    schema = "qe",
   code_station = NULL,
   code_point_prelevement_aspe = NULL,
   annee_debut = NULL,
@@ -199,6 +201,10 @@ plot_facies_importance <- function(
   con <- connect_pg(yaml_path)
   on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
+   schema_safe <- sanitize_schema(schema)
+    tbl_ops <- sprintf('"%s".aspe_operations', schema_safe)
+  tbl_sta <- sprintf('"%s".aspe_stations',   schema_safe)
+   
   if (!is.null(code_station)) {
     filtre_sql <- "s.code_station = $1"; param1 <- code_station
   } else if (!is.null(code_point_prelevement_aspe)) {
