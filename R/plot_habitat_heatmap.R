@@ -126,21 +126,26 @@ plot_habitat_heatmap <- function(
 
   cols <- c("date_operation", vars_habitats)
 
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql <- glue("
     SELECT {paste(sprintf('o.%s', cols), collapse=', ')}
     FROM {tbl_ops} o
     {join_sql}
     WHERE {filtre_sql}
-      AND NOT (o.libelle_qualification_operation = ANY($2))   -- <-- [NOUVEAU]
+    {excl_clause}
       AND o.date_operation IS NOT NULL
-      AND date_part('year', o.date_operation::timestamp) BETWEEN $3 AND $4
+      AND date_part('year', o.date_operation::timestamp) BETWEEN $2 AND $3
     ORDER BY o.date_operation::timestamp;
   ")
 
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(param1, exclure_typologies, annee_debut, annee_fin)  # <-- [NOUVEAU]
+    params = list(param1, annee_debut, annee_fin)  
   )
 
   if (!nrow(df)) return(NULL)
@@ -153,18 +158,19 @@ plot_habitat_heatmap <- function(
     filter(!is.na(date)) %>%
     arrange(date)
 
-  if (!is.null(n_last) && n_last > 0) {
-    last_dates <- df %>% distinct(date) %>% arrange(desc(date)) %>% slice(1:n_last) %>% pull(date)
-    df <- df %>% filter(date %in% last_dates)
-  }
+if (!is.null(n_last) && n_last > 0) {
+  last_dates <- df %>% distinct(date) %>% arrange(desc(date)) %>% slice(1:n_last) %>% pull(date)
+  df <- df %>% filter(date %in% last_dates)
+}
 
   if (!nrow(df)) return(NULL)
 
-  df <- df %>%
-    mutate(
-      date_label  = format(date, "%d/%m/%y"),
-      date_factor = factor(date_label, levels = unique(date_label))
-    )
+df <- df %>%
+  arrange(date) %>%                          # <-- tri croissant explicite après filtre
+  mutate(
+    date_label  = format(date, "%d/%m/%y"),
+    date_factor = factor(date_label, levels = unique(date_label))  # niveaux = ordre chrono
+  )
 
 
   # Extraction / pivot / catégorisation

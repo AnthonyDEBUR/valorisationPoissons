@@ -199,13 +199,18 @@ plot_ipr_histogram <- function(
   on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
   schema_safe <- sanitize_schema(schema)
-  tbl_ipr  <- sprintf('"%s".aspe_ippr',        schema_safe)
+  tbl_ipr  <- sprintf('"%s".aspe_ipr', schema_safe)
   tbl_ops  <- sprintf('"%s".aspe_operations', schema_safe)
 
 
   # 2) Requête SQL avec exclusion typologies
-
-  placeholders <- paste(rep("?", length(exclure_typologies)), collapse = ",")
+# Avant la construction du SQL, préparez le fragment SQL de la clause d'exclusion :
+excl_sql <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  paste0("AND NOT (op.libelle_qualification_operation IN (", quoted, "))")
+} else {
+  ""   # pas d'exclusion
+}
   
   sql <- glue::glue("
     WITH ipr_explicit AS (
@@ -236,17 +241,16 @@ plot_ipr_histogram <- function(
       ON op.code_operation = e.code_operation
     WHERE EXTRACT(YEAR FROM op.date_operation::timestamptz)
           BETWEEN $2 AND $3
-      AND op.libelle_qualification_operation NOT IN ({placeholders})
+    {excl_sql}
     ORDER BY date_op;
   ")
 
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = c(list(station, 
+    params = list(station, 
                     annee_debut, 
-                    annee_fin), 
-               as.list(exclure_typologies))
+                    annee_fin)
   )
 
   if (!nrow(df)) return(invisible(NULL))
@@ -295,7 +299,21 @@ plot_ipr_histogram <- function(
 
 # Histogramme des effectifs par date / passage
 ```{r function}
-
+#' Histogramme des effectifs par date / passage
+#'
+#' @param yaml_path Chemin du YAML de connexion Postgres
+#' @param station Code Sandre de la station
+#' @param code_point_prelevement_aspe Code aspe de la station (utilisé seulement si Code Sandre de la station n'est pas renseigné)
+#' @param annee_debut Année de début
+#' @param annee_fin Année de fin
+#' @param schema Schéma SQL
+#' @param bar_width Largeur des barres
+#' @param n_last Nombre max de campagnes
+#' @param exclure_typologies Vecteur des typologies d'opérations à exclure
+#'        (défaut = "Incorrecte", les autres typologies sont "Incertaine",
+#'        "Non qualifié" et "Correcte")
+#'
+#' @export
 plot_effectifs_histogram <- function(
   yaml_path,
   station = NULL,
@@ -345,6 +363,12 @@ plot_effectifs_histogram <- function(
 
   # 3) SQL complet avec EXCLUSION TYPOLOGIES
 
+excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (op.libelle_qualification_operation IN ({quoted}))")
+} else ""
+
+
   sql <- glue::glue("
     WITH base AS (
       SELECT
@@ -373,7 +397,7 @@ plot_effectifs_histogram <- function(
         AND EXTRACT(YEAR FROM ((op.date_operation)::timestamptz))
               BETWEEN $2 AND $3
         {ipr_filter_clause}
-        AND NOT (op.libelle_qualification_operation = ANY($4)) 
+    {excl_clause}
     ),
 
     lots_uniques AS (
@@ -411,8 +435,7 @@ plot_effectifs_histogram <- function(
     params = list(
       param1,
       annee_debut,
-      annee_fin,
-      exclure_typologies     # <- [NOUVEAU PARAMÈTRE SQL $4]
+      annee_fin
     )
   )
   if (!nrow(df)) return(invisible(NULL))
@@ -440,12 +463,13 @@ plot_effectifs_histogram <- function(
 
   ggplot2::ggplot(df, aes(x = label_date, y = effectif, fill = passage)) +
     geom_col(width = bar_width, color = "black", linewidth = 0.4) +
-    geom_text(
-      data = df_tot,
-      aes(label = format(effectif, big.mark = " ", scientific = FALSE)),
-      inherit.aes = FALSE,
-      vjust = -0.3, size = 4
-    ) +
+geom_text(
+  data = df_tot,
+  aes(x = label_date, y = effectif,
+      label = format(effectif, big.mark = " ", scientific = FALSE)),
+  inherit.aes = FALSE,
+  vjust = -0.3, size = 4
+) +
     scale_y_continuous(expand = expansion(mult = c(0, 0.10))) +
     scale_fill_manual(values = pal, name = "Passage") +
     labs(title = "Effectif total", x = NULL, y = NULL) +
@@ -460,6 +484,8 @@ plot_effectifs_histogram <- function(
 
 # Histogramme des métriques IPR
 ```{r function}
+#' Histogramme des métriques de l'IPR
+#' @export
 plot_ipr_metrics <- function(
   yaml_path,
   station,
@@ -515,6 +541,10 @@ plot_ipr_metrics <- function(
 
 
   # 4) SQL : ajout JOIN opérations + filtre typologies
+excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (op.libelle_qualification_operation IN ({quoted}))")
+} else ""
 
   sql <- glue::glue("
     SELECT 
@@ -527,13 +557,13 @@ plot_ipr_metrics <- function(
     WHERE ipr.code_station = $1
       AND EXTRACT(YEAR FROM ipr.date) BETWEEN $2 AND $3
       AND ipr.lib_par IN ({lib_in})
-      AND NOT (op.libelle_qualification_operation = ANY($4)) 
+    {excl_clause}
     ORDER BY ipr.date ASC;
   ")
 
   df <- DBI::dbGetQuery(
     con, sql,
-    params = list(station, as.integer(annee_debut), as.integer(annee_fin), exclure_typologies)  
+    params = list(station, as.integer(annee_debut), as.integer(annee_fin))  
   )
   if (!nrow(df)) return(NULL)
 
@@ -722,19 +752,24 @@ make_ipr_planche <- function(
 
   # Extraction des opérations IPR pour la station + EXCLUSION TYPOLOGIES
 
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql_ops <- glue::glue("
     SELECT c.code_operation, o.date_operation
     FROM {tbl_ipr_compl} c
     JOIN {tbl_ops} o
       ON c.code_operation = o.code_operation
     WHERE c.code_station = $1
-      AND NOT (o.libelle_qualification_operation = ANY($2))
+    {excl_clause}
   ")
 
   ops <- DBI::dbGetQuery(
     con,
     sql_ops,
-    params = list(station, exclure_typologies)  # <-- NOUVEAU
+    params = list(station)  
   )
   if (!nrow(ops)) return(NULL)
 
@@ -971,21 +1006,26 @@ plot_habitat_heatmap <- function(
 
   cols <- c("date_operation", vars_habitats)
 
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql <- glue("
     SELECT {paste(sprintf('o.%s', cols), collapse=', ')}
     FROM {tbl_ops} o
     {join_sql}
     WHERE {filtre_sql}
-      AND NOT (o.libelle_qualification_operation = ANY($2))   -- <-- [NOUVEAU]
+    {excl_clause}
       AND o.date_operation IS NOT NULL
-      AND date_part('year', o.date_operation::timestamp) BETWEEN $3 AND $4
+      AND date_part('year', o.date_operation::timestamp) BETWEEN $2 AND $3
     ORDER BY o.date_operation::timestamp;
   ")
 
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(param1, exclure_typologies, annee_debut, annee_fin)  # <-- [NOUVEAU]
+    params = list(param1, annee_debut, annee_fin)  
   )
 
   if (!nrow(df)) return(NULL)
@@ -998,18 +1038,19 @@ plot_habitat_heatmap <- function(
     filter(!is.na(date)) %>%
     arrange(date)
 
-  if (!is.null(n_last) && n_last > 0) {
-    last_dates <- df %>% distinct(date) %>% arrange(desc(date)) %>% slice(1:n_last) %>% pull(date)
-    df <- df %>% filter(date %in% last_dates)
-  }
+if (!is.null(n_last) && n_last > 0) {
+  last_dates <- df %>% distinct(date) %>% arrange(desc(date)) %>% slice(1:n_last) %>% pull(date)
+  df <- df %>% filter(date %in% last_dates)
+}
 
   if (!nrow(df)) return(NULL)
 
-  df <- df %>%
-    mutate(
-      date_label  = format(date, "%d/%m/%y"),
-      date_factor = factor(date_label, levels = unique(date_label))
-    )
+df <- df %>%
+  arrange(date) %>%                          # <-- tri croissant explicite après filtre
+  mutate(
+    date_label  = format(date, "%d/%m/%y"),
+    date_factor = factor(date_label, levels = unique(date_label))  # niveaux = ordre chrono
+  )
 
 
   # Extraction / pivot / catégorisation
@@ -1234,6 +1275,11 @@ plot_facies_profondeur_histogram <- function(
     stop("Veuillez fournir code_station OU code_point_prelevement_aspe.")
   }
 
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql <- glue("
     SELECT
       o.date_operation::date AS date_op,
@@ -1242,7 +1288,7 @@ plot_facies_profondeur_histogram <- function(
     FROM {tbl_ops} o
     {join_sql}
     WHERE {filtre_sql}
-      AND NOT (o.libelle_qualification_operation = ANY($4))
+    {excl_clause}
       AND EXTRACT(YEAR FROM o.date_operation::date)
             BETWEEN $2 AND $3
       AND o.facies_profondeur_moyenne IS NOT NULL
@@ -1252,7 +1298,7 @@ plot_facies_profondeur_histogram <- function(
 
   df <- DBI::dbGetQuery(
     con, sql,
-    params=list(param1, annee_debut, annee_fin, exclure_typologies)
+    params=list(param1, annee_debut, annee_fin)
   )
   if (nrow(df) == 0) return(NULL)
 
@@ -1379,6 +1425,11 @@ plot_profondeur_histogram <- function(
 
   # 4) SQL sécurisé + EXCLUSION TYPOLOGIES
 
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql <- glue("
     SELECT
       o.date_operation::date AS date_op,
@@ -1386,7 +1437,7 @@ plot_profondeur_histogram <- function(
     FROM {tbl_ops} o
     {join_sql}
     WHERE {filtre_sql}
-      AND NOT (o.libelle_qualification_operation = ANY($4))   -- <-- [NOUVEAU]
+    {excl_clause}
       AND EXTRACT(YEAR FROM o.date_operation::date) BETWEEN $2 AND $3
       AND o.profondeur IS NOT NULL
     ORDER BY date_op DESC;
@@ -1395,7 +1446,7 @@ plot_profondeur_histogram <- function(
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(param1, annee_debut, annee_fin, exclure_typologies)  # <-- [NOUVEAU $4]
+    params = list(param1, annee_debut, annee_fin)  
   )
 
   if (nrow(df) == 0) {
@@ -1508,6 +1559,11 @@ plot_surface_pechee_histogram <- function(
   
   # 4) SQL sécurisé + EXCLUSION TYPOLOGIES
   
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql <- glue("
     SELECT
       o.date_operation::date AS date_op,
@@ -1515,7 +1571,7 @@ plot_surface_pechee_histogram <- function(
     FROM {tbl_ops} o
     {join_sql}
     WHERE {filtre_sql}
-      AND NOT (o.libelle_qualification_operation = ANY($4))   -- <-- [NOUVEAU]
+    {excl_clause}
       AND EXTRACT(YEAR FROM o.date_operation::date) BETWEEN $2 AND $3
       AND o.surface_calculee IS NOT NULL
     ORDER BY date_op DESC;
@@ -1524,7 +1580,7 @@ plot_surface_pechee_histogram <- function(
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(param1, annee_debut, annee_fin, exclure_typologies)  # <-- [NOUVEAU]
+    params = list(param1, annee_debut, annee_fin) 
   )
 
   if (nrow(df) == 0) {
@@ -1663,7 +1719,12 @@ plot_longueur_pechee_histogram <- function(
   }
 
   
-  # 4) SQL sécurisé + exclusion typologies (vectorisée via ANY)
+  # 4) SQL sécurisé + exclusion typologies 
+  
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
   
   sql <- glue("
     SELECT
@@ -1672,7 +1733,7 @@ plot_longueur_pechee_histogram <- function(
     FROM {tbl_ops} o
     {join_sql}
     WHERE {filtre_sql}
-      AND NOT (o.libelle_qualification_operation = ANY($4))
+    {excl_clause}
       AND EXTRACT(YEAR FROM o.date_operation::date) BETWEEN $2 AND $3
       AND o.longueur IS NOT NULL
     ORDER BY date_op DESC;
@@ -1681,7 +1742,7 @@ plot_longueur_pechee_histogram <- function(
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(param1, annee_debut, annee_fin, exclure_typologies)
+    params = list(param1, annee_debut, annee_fin)
   )
 
   if (nrow(df) == 0) {
@@ -1794,6 +1855,11 @@ plot_largeur_lame_eau_pechee_histogram <- function(
   
   # 4) SQL sécurisé + EXCLUSION TYPOLOGIES
   
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql <- glue("
     SELECT
       o.date_operation::date AS date_op,
@@ -1801,7 +1867,7 @@ plot_largeur_lame_eau_pechee_histogram <- function(
     FROM {tbl_ops} o
     {join_sql}
     WHERE {filtre_sql}
-      AND NOT (o.libelle_qualification_operation = ANY($4))  -- <-- [NOUVEAU]
+    {excl_clause}
       AND EXTRACT(YEAR FROM o.date_operation::date) BETWEEN $2 AND $3
       AND o.largeur_lame_eau IS NOT NULL
     ORDER BY date_op DESC;
@@ -1810,7 +1876,7 @@ plot_largeur_lame_eau_pechee_histogram <- function(
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(param1, annee_debut, annee_fin, exclure_typologies)  # <-- [NOUVEAU]
+    params = list(param1, annee_debut, annee_fin) 
   )
 
   if (nrow(df) == 0) {
@@ -1930,6 +1996,11 @@ plot_temperature_instantanee_pechee_histogram <- function(
   
   # 4) SQL sécurisé + exclusion typologies (vectorisée via ANY)
   
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql <- glue("
     SELECT
       o.date_operation::date     AS date_op,
@@ -1937,7 +2008,7 @@ plot_temperature_instantanee_pechee_histogram <- function(
     FROM {tbl_ops} o
     {join_sql}
     WHERE {filtre_sql}
-      AND NOT (o.libelle_qualification_operation = ANY($4))
+    {excl_clause}
       AND EXTRACT(YEAR FROM o.date_operation::date) BETWEEN $2 AND $3
       AND o.temperature_instantanee IS NOT NULL
     ORDER BY date_op DESC;
@@ -1946,7 +2017,7 @@ plot_temperature_instantanee_pechee_histogram <- function(
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(param1, annee_debut, annee_fin, exclure_typologies)
+    params = list(param1, annee_debut, annee_fin)
   )
 
   if (nrow(df) == 0) {
@@ -2061,6 +2132,11 @@ plot_puissance_pechee_histogram <- function(
   
   # 4) SQL sécurisé + EXCLUSION TYPOLOGIES
   
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql <- glue("
     SELECT
       o.date_operation::date AS date_op,
@@ -2068,7 +2144,7 @@ plot_puissance_pechee_histogram <- function(
     FROM {tbl_ops} o
     {join_sql}
     WHERE {filtre_sql}
-      AND NOT (o.libelle_qualification_operation = ANY($4))    -- <-- [NOUVEAU]
+    {excl_clause}
       AND EXTRACT(YEAR FROM o.date_operation::date) BETWEEN $2 AND $3
       AND o.puissance IS NOT NULL
     ORDER BY date_op DESC;
@@ -2077,7 +2153,7 @@ plot_puissance_pechee_histogram <- function(
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(param1, annee_debut, annee_fin, exclure_typologies)  # <-- [NOUVEAU $4]
+    params = list(param1, annee_debut, annee_fin) 
   )
 
   if (nrow(df) == 0) {
@@ -2191,6 +2267,11 @@ plot_conductivite_pechee_histogram <- function(
   
   # 4) SQL sécurisé + filtre typologique
   
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql <- glue("
     SELECT
       o.date_operation::date AS date_op,
@@ -2198,7 +2279,7 @@ plot_conductivite_pechee_histogram <- function(
     FROM {tbl_ops} o
     {join_sql}
     WHERE {filtre_sql}
-      AND NOT (o.libelle_qualification_operation = ANY($4))   -- <-- [NOUVEAU]
+    {excl_clause}
       AND EXTRACT(YEAR FROM o.date_operation::date)
             BETWEEN $2 AND $3
       AND o.conductivite IS NOT NULL
@@ -2208,7 +2289,7 @@ plot_conductivite_pechee_histogram <- function(
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(param1, annee_debut, annee_fin, exclure_typologies)  # <-- [NOUVEAU]
+    params = list(param1, annee_debut, annee_fin)  
   )
 
   if (nrow(df) == 0) {
@@ -2244,7 +2325,146 @@ plot_conductivite_pechee_histogram <- function(
 }
 ```
 
+# Histogramme des faciès
+```{r function}
+#' Histogramme des faciès (Courant / Plat / Profond)
+#'
+#' @param yaml_path Chemin YAML
+#' @param code_station Code Sandre de la station (ou NULL si `code_point_prelevement_aspe` fourni)
+#' @param code_point_prelevement_aspe Code du point ASPE (ou NULL si `code_station` fourni)
+#' @param annee_debut Année de début (défaut 1900)
+#' @param annee_fin Année de fin (défaut = année courante)
+#' @param n_last Nombre d'opérations (dates distinctes) à afficher
+#' @param exclure_typologies Vecteur des typologies d’opérations à exclure
+#'   (défaut `"Incorrecte"`).
+#'
+#' @return Un `ggplot2` (ou `NULL` si aucune donnée)
+#'
+#' @examples
+#' \dontrun{
+#' plot_facies_importance(".../config.yml", code_station = "04207400", annee_debut = 1950, n_last = 12)#' plot_facies_importance(".../config.yml", code_station = "04207400", annee_debut = 1950, n_last = 12)
+#' }
+#' @export
+plot_facies_importance <- function(
+  yaml_path,
+  code_station = NULL,
+  code_point_prelevement_aspe = NULL,
+  annee_debut = NULL,
+  annee_fin   = lubridate::year(Sys.Date()),
+  n_last = 12,
+  exclure_typologies= c("Incorrecte") 
+){
+  con <- connect_pg(yaml_path)
+  on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
+  if (!is.null(code_station)) {
+    filtre_sql <- "s.code_station = $1"; param1 <- code_station
+  } else if (!is.null(code_point_prelevement_aspe)) {
+    filtre_sql <- "s.code_point_prelevement_aspe = $1"; param1 <- code_point_prelevement_aspe
+  } else stop("Veuillez fournir code_station OU code_point_prelevement_aspe.", call. = FALSE)
+
+  if (is.null(annee_debut)) annee_debut <- 1900
+
+  
+  excl_clause <- if (length(exclure_typologies) > 0) {
+    quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+    glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+  } else ""
+
+  sql <- glue::glue("
+    SELECT
+      o.date_operation,
+      o.facies_importance_relative,
+      o.facies_libelle_type
+    FROM {tbl_ops} o
+    JOIN {tbl_sta} s
+      ON o.code_point_prelevement_aspe = s.code_point_prelevement_aspe
+    WHERE {filtre_sql}
+      AND o.date_operation IS NOT NULL
+      AND date_part('year', CAST(o.date_operation AS timestamp)) BETWEEN $2 AND $3
+    {excl_clause}
+    ORDER BY CAST(o.date_operation AS timestamp);
+  ")
+
+  df_all <- DBI::dbGetQuery(con, sql, params = list(param1, annee_debut, annee_fin))
+  if (!nrow(df_all)) return(NULL)
+
+
+  df_all <- df_all |>
+    dplyr::mutate(
+      date = as.Date(lubridate::as_datetime(date_operation)),
+      date_label = format(date, "%d/%m/%y")
+    ) |>
+    dplyr::arrange(date)
+
+  last_dates <- df_all |> dplyr::distinct(date) |> dplyr::arrange(dplyr::desc(date)) |> dplyr::slice(1:n_last) |> dplyr::pull(date)
+  df <- df_all |> dplyr::filter(date %in% last_dates) |> dplyr::arrange(date)
+  if (!nrow(df)) return(NULL)
+
+  dates_ref <- df |> dplyr::distinct(date, date_label)
+
+  decode_relative <- function(x){
+    if (is.null(x) || length(x) == 0 || is.na(x) || trimws(x) == "") return(NULL)
+    x_raw <- x
+    x <- gsub("^\\\\x", "", x)
+    x <- gsub("[^0-9 ]", "", x)
+    x_trim <- trimws(x)
+    if (grepl("^\\\\x\\s", x_raw)) {
+      x_trim <- paste0("0", gsub(" ", "", x_trim))
+    } else {
+      x_trim <- gsub(" ", "", x_trim)
+    }
+    if (nchar(x_trim) == 0 || nchar(x_trim) %% 2 != 0) return(NULL)
+    vals <- stringr::str_extract_all(x_trim, "..")[[1]]
+    vals <- as.numeric(vals)
+    if (any(is.na(vals))) return(NULL)
+    if (abs(sum(vals) - 100) > 1e-6) return(NULL)
+    vals
+  }
+
+  decode_modalites <- function(x){
+    if (is.null(x) || is.na(x) || trimws(x) == "") return(NULL)
+    x <- gsub("^\\\\x", "", x)
+    x <- stringr::str_squish(x)
+    parts <- unlist(stringr::str_split(x, "\\s+"))
+    parts <- stringr::str_trim(parts)
+    parts[parts == "Profonds"] <- "Profond"
+    parts
+  }
+
+  tidy <- df |>
+    dplyr::rowwise() |>
+    dplyr::mutate(
+      valeurs   = list(decode_relative(facies_importance_relative)),
+      modalites = list(decode_modalites(facies_libelle_type)),
+      ok        = !is.null(valeurs) && !is.null(modalites) && length(valeurs) == length(modalites)
+    ) |>
+    dplyr::ungroup()
+
+  long_valid <- tidy |>
+    dplyr::filter(ok) |>
+    tidyr::unnest(cols = c(valeurs, modalites)) |>
+    dplyr::filter(modalites %in% c("Courant","Plat","Profond"))
+
+  all_facies <- c("Courant","Plat","Profond")
+  grid <- tidyr::crossing(dates_ref, modalites = all_facies)
+
+  long <- grid |>
+    dplyr::left_join(long_valid, by = c("date","date_label","modalites")) |>
+    dplyr::mutate(valeurs = dplyr::coalesce(valeurs, 0)) |>
+    dplyr::mutate(date_label = factor(date_label, levels = dates_ref$date_label))
+
+  facies_colors <- c("Courant"="#6D76F8","Plat"="#7FDD4C","Profond"="#C72C48")
+
+  ggplot2::ggplot(long, ggplot2::aes(x = date_label, y = valeurs, fill = modalites)) +
+    ggplot2::geom_col(color = "black") +
+    ggplot2::scale_fill_manual(values = facies_colors, name = "Faciès", drop = FALSE, na.translate = FALSE) +
+    ggplot2::labs(title = "Importance relative des faciès", x = NULL, y = "Pourcentage") +
+    ggplot2::theme_bw(base_size = 13) +
+    ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90, hjust = 1),
+                   panel.grid.minor = ggplot2::element_blank())
+}
+```
 
 # Planche synthèse habitats
 ```{r function}
@@ -2828,7 +3048,11 @@ graph_descriptif_operation <- function(
 
  
   # 3) SQL + EXCLUSION TYPOLOGIES (ANY($4))
- 
+ excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql <- glue("
     SELECT
       {select_station},
@@ -2842,7 +3066,7 @@ graph_descriptif_operation <- function(
     FROM {tbl_ops} o
     {join_sql}
     WHERE {filtre_sql}
-      AND NOT (o.libelle_qualification_operation = ANY($4))   -- <-- [NOUVEAU]
+    {excl_clause}
       AND EXTRACT(YEAR FROM o.date_operation::date)
             BETWEEN $2 AND $3
     ORDER BY date_op DESC;
@@ -2851,7 +3075,7 @@ graph_descriptif_operation <- function(
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(param1, annee_debut, annee_fin, exclure_typologies)  # <-- [NOUVEAU]
+    params = list(param1, annee_debut, annee_fin)  
   )
 
   if (nrow(df) == 0) return(NULL)
@@ -3080,6 +3304,11 @@ plot_faune_heatmap <- function(
   
   # SQL + EXCLUSION TYPOLOGIES
   
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql <- glue::glue("
     SELECT 
       o.date_operation,
@@ -3093,7 +3322,7 @@ plot_faune_heatmap <- function(
     JOIN \"{schema_safe}\".aspe_stations s
          ON o.code_point_prelevement_aspe = s.code_point_prelevement_aspe
     WHERE {filtre_sql}
-      AND NOT (o.libelle_qualification_operation = ANY($4))   -- <-- [NOUVEAU]
+    {excl_clause}
       AND o.date_operation IS NOT NULL
       AND date_part('year', o.date_operation::timestamp)
             BETWEEN $2 AND $3
@@ -3103,7 +3332,7 @@ plot_faune_heatmap <- function(
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(param1, annee_debut, annee_fin, exclure_typologies)  # <-- [NOUVEAU]
+    params = list(param1, annee_debut, annee_fin) 
   )
   if (!nrow(df)) return(NULL)
 
@@ -3286,6 +3515,11 @@ plot_facies_profondeur_histogram_provisoire <- function(
     param1 <- code_point_prelevement_aspe
   }
 
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql <- glue("
     SELECT
       o.date_operation::date AS date_op,
@@ -3294,7 +3528,7 @@ plot_facies_profondeur_histogram_provisoire <- function(
     FROM {tbl_ops} o
     {join_sql}
     WHERE {filtre_sql}
-      AND NOT (o.libelle_qualification_operation = ANY($4))   -- <-- [NOUVEAU]
+    {excl_clause}
       AND EXTRACT(YEAR FROM o.date_operation::date)
             BETWEEN $2 AND $3
       AND o.facies_profondeur_moyenne IS NOT NULL
@@ -3305,7 +3539,7 @@ plot_facies_profondeur_histogram_provisoire <- function(
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(param1, annee_debut, annee_fin, exclure_typologies)  # <-- [NOUVEAU]
+    params = list(param1, annee_debut, annee_fin) 
   )
   if (nrow(df) == 0) return(NULL)
 
@@ -3484,19 +3718,24 @@ ipr_heatmap_3x3 <- function(
       stop("Veuillez fournir code_operation OU code_station OU code_point_prelevement_aspe.")
     }
 
-    # Filtrage ICI sur typologies
+    
+    excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+    
     sql_ops <- glue::glue("
       SELECT o.code_operation
       FROM qe.aspe_operations o
       JOIN qe.aspe_stations s
         ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
       WHERE {filtre_sql}
-        AND NOT (o.libelle_qualification_operation = ANY($2))
+      {excl_clause}
         AND o.date_operation IS NOT NULL
       ORDER BY o.date_operation::date DESC;
     ")
 
-    ops <- DBI::dbGetQuery(con, sql_ops, params=list(param1, exclure_typologies))
+    ops <- DBI::dbGetQuery(con, sql_ops, params=list(param1))
     if (!nrow(ops)) return(NULL)
 
     # Toujours la dernière opération chronologiquement
@@ -3581,9 +3820,9 @@ ipr_heatmap_3x3 <- function(
   grid$fill_color <- dplyr::case_when(
     (grid$ligne=="L1" & grid$colonne=="C1") |
       (grid$ligne=="L2" & grid$colonne=="C2") |
-      (grid$ligne=="L3" & grid$colonne=="C3") ~ "#4daf4a",
+      (grid$ligne=="L3" & grid$colonne=="C3") ~ "#4682B4",
     (grid$ligne=="L1" & grid$colonne=="C3") |
-      (grid$ligne=="L3" & grid$colonne=="C1") ~ "#e41a1c",
+      (grid$ligne=="L3" & grid$colonne=="C1") ~ "#B4464B",
     TRUE ~ "#ffec8b"
   )
 
@@ -3739,6 +3978,10 @@ make_analyse_pop_IPR_planche <- function(
 
   
   # Extraction DES OPERATIONS IPR (AVEC EXCLUSION TYPOLOGIES)
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
   
   sql <- glue::glue("
     SELECT c.code_operation, o.date_operation
@@ -3746,13 +3989,13 @@ make_analyse_pop_IPR_planche <- function(
     JOIN   \"{schema}\".aspe_operations o
            ON c.code_operation = o.code_operation
     WHERE  c.code_station = $1
-      AND NOT (o.libelle_qualification_operation = ANY($2))
+{excl_clause}
   ")
 
   ops <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(station, exclure_typologies)   # <-- application du filtre
+    params = list(station)   # <-- application du filtre
   )
   if (!nrow(ops)) return(NULL)
 

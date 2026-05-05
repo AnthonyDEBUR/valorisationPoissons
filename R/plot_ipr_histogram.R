@@ -35,13 +35,18 @@ plot_ipr_histogram <- function(
   on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
 
   schema_safe <- sanitize_schema(schema)
-  tbl_ipr  <- sprintf('"%s".aspe_ippr',        schema_safe)
+  tbl_ipr  <- sprintf('"%s".aspe_ipr', schema_safe)
   tbl_ops  <- sprintf('"%s".aspe_operations', schema_safe)
 
 
   # 2) Requête SQL avec exclusion typologies
-
-  placeholders <- paste(rep("?", length(exclure_typologies)), collapse = ",")
+# Avant la construction du SQL, préparez le fragment SQL de la clause d'exclusion :
+excl_sql <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  paste0("AND NOT (op.libelle_qualification_operation IN (", quoted, "))")
+} else {
+  ""   # pas d'exclusion
+}
   
   sql <- glue::glue("
     WITH ipr_explicit AS (
@@ -72,17 +77,16 @@ plot_ipr_histogram <- function(
       ON op.code_operation = e.code_operation
     WHERE EXTRACT(YEAR FROM op.date_operation::timestamptz)
           BETWEEN $2 AND $3
-      AND op.libelle_qualification_operation NOT IN ({placeholders})
+    {excl_sql}
     ORDER BY date_op;
   ")
 
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = c(list(station, 
+    params = list(station, 
                     annee_debut, 
-                    annee_fin), 
-               as.list(exclure_typologies))
+                    annee_fin)
   )
 
   if (!nrow(df)) return(invisible(NULL))

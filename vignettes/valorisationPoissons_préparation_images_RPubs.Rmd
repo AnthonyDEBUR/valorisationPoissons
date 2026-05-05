@@ -1,0 +1,359 @@
+---
+title: "valorisationPoissons — Exemples illustrés (RPubs)"
+author: "Eaux & Vilaine"
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: false
+    df_print: paged
+    code_folding: show
+    fig_caption: true
+    theme: readable
+params:
+  run_online: false
+  yaml_path: "C:/workspace/gwilenalim/yaml/config.yml"
+  station: "04216050"
+  n_last: 12
+  code_operation_demo: 95375
+vignette: >
+  %\VignetteIndexEntry{valorisationPoissons — Exemples illustrés (RPubs)}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  message = FALSE, warning = FALSE, fig.align = "center",
+  fig.width = 9, fig.height = 5
+)
+library(ggplot2)
+library(knitr)
+library(magrittr)
+RUN_ONLINE <- isTRUE(params$run_online)
+YAML_PATH <- params$yaml_path
+STATION    <- params$station
+N_LAST     <- as.integer(params$n_last)
+CODE_OP    <- params$code_operation_demo
+
+# Dossier cache (images utilisées en mode offline)
+fig_dir <- "vignettes/fig-rpubs"
+if (!dir.exists(fig_dir)) dir.create(fig_dir, recursive = TRUE)
+
+# Petite aide pour inclure une image si elle existe
+show_img <- function(fname, alt = fname) {
+  fpath <- file.path(fig_dir, fname)
+  if (file.exists(fpath)) {
+    knitr::include_graphics(fpath)
+  } else {
+    cat(sprintf("\n> ⚠️ Image manquante: `%s` — exécutez la section 'Pré-générer le cache offline' ci-dessous.\n\n", fpath))
+  }
+}
+```
+
+### À propos de ce document
+
+Cette vignette montre comment utiliser les fonctions principales du package `valorisationPoissons` et **présente des rendus graphiques** commentés. Elle fonctionne en **deux modes** :
+
+- **Mode *online*** (avec accès BDD) – `params$run_online = TRUE`, on appelle directement tes fonctions qui se connectent à Postgres via `yaml_path`.  
+- **Mode *offline*** (défaut) – on **réutilise des images en cache** générées au préalable sur une machine ayant accès BDD (voir section suivante). Idéal pour publier sur **RPubs**/**pkgdown**.
+
+> Tous les exemples ci‑dessous s’appuient sur les **fonctions exportées** définies dans ton flat file `{fusen}` (voir références en marge).
+
+---
+
+### 🔁 (Optionnel) Pré‑générer le cache offline (une fois, sur poste connecté à la BDD)
+
+> Exécuter ce chunk **une seule fois** en **mode online** (modifiez `params` en haut : `run_online: true`).  
+> Il va enregistrer les PNGs dans `vignettes/fig-rpubs/` qui seront **réutilisés** quand `run_online: false`.
+
+```{r cache-offline, eval=RUN_ONLINE}
+library(valorisationPoissons)
+
+# 1) Planche IPR
+p <- make_ipr_planche(
+  yaml_path = YAML_PATH, station = STATION, n_last = N_LAST
+) # renvoie un ggplot assemblé (cowplot)
+ggplot2::ggsave(file.path(fig_dir, "planche_ipr.png"), p, width=11, height=7, dpi=200, bg="white")
+
+# 2) Planche Habitats
+p <- make_habitats_peche_planche(
+  yaml_path = YAML_PATH, station = STATION, n_last = N_LAST
+)
+ggplot2::ggsave(file.path(fig_dir, "planche_habitats.png"), p, width=11, height=7, dpi=200, bg="white")
+
+# 3) Planche Opération
+p <- make_operations_peche_planche(
+  yaml_path = YAML_PATH, station = STATION, n_last = N_LAST
+)
+ggplot2::ggsave(file.path(fig_dir, "planche_operations.png"), p, width=11, height=7, dpi=200, bg="white")
+
+# 4) Heatmap faune
+p <- plot_faune_heatmap(
+  yaml_path = YAML_PATH, code_station = STATION, n_last = N_LAST
+)
+ggplot2::ggsave(file.path(fig_dir, "heatmap_faune.png"), p, width=11, height=7, dpi=200, bg="white")
+
+# 5) Heatmap habitats
+p <- plot_habitat_heatmap(
+  yaml_path = YAML_PATH, code_station = STATION, annee_debut = 2000, annee_fin = 2025
+)
+ggplot2::ggsave(file.path(fig_dir, "heatmap_habitat.png"), p, width=11, height=7, dpi=200, bg="white")
+
+# 6) Histogrammes "conditions"
+save_hist <- function(p, name) ggsave(file.path(fig_dir, name), p, width=9, height=4, dpi=200, bg="white")
+save_hist(plot_profondeur_histogram(YAML_PATH, code_station=STATION, annee_debut=2000, annee_fin=2025), "hist_profondeur.png")
+save_hist(plot_surface_pechee_histogram(YAML_PATH, code_station=STATION, annee_debut=2000, annee_fin=2025), "hist_surface.png")
+save_hist(plot_longueur_pechee_histogram(YAML_PATH, code_station=STATION, annee_debut=2000, annee_fin=2025), "hist_longueur.png")
+save_hist(plot_largeur_lame_eau_pechee_histogram(YAML_PATH, code_station=STATION, annee_debut=2000, annee_fin=2025), "hist_largeur.png")
+save_hist(plot_conductivite_pechee_histogram(YAML_PATH, code_station=STATION, annee_debut=2000, annee_fin=2025), "hist_conductivite.png")
+save_hist(plot_temperature_instantanee_pechee_histogram(YAML_PATH, code_station=STATION, annee_debut=2000, annee_fin=2025), "hist_temperature.png")
+save_hist(plot_puissance_pechee_histogram(YAML_PATH, code_station=STATION, annee_debut=2000, annee_fin=2025), "hist_puissance.png")
+
+# 7) Faciès (importance relative)
+p <- plot_facies_importance(
+  yaml_path = YAML_PATH, code_station = STATION, annee_debut = 2000, annee_fin = 2025, n_last = N_LAST
+)
+ggplot2::ggsave(file.path(fig_dir, "hist_facies_importance.png"), p, width=9, height=4, dpi=200, bg="white")
+
+# 8) IPR 3x3 sur une opération
+p <- ipr_heatmap_3x3(
+  yaml_path = YAML_PATH, code_operation = CODE_OP, show_axis_titles = TRUE, show_axis_text = TRUE
+)
+ggplot2::ggsave(file.path(fig_dir, "ipr_3x3.png"), p, width=6, height=6, dpi=200, bg="white")
+
+# 9) Planche multi-opérations IPR
+p <- make_analyse_pop_IPR_planche(
+  yaml_path = YAML_PATH, station = STATION, annee_debut = 2000, n_last = N_LAST
+)
+ggplot2::ggsave(file.path(fig_dir, "planche_ipr_multi.png"), p, width=11, height=8, dpi=200, bg="white")
+
+# 10) Guildes écologiques
+p <- graph_modalites_ipr(text_size = 3.5)
+ggplot2::ggsave(file.path(fig_dir, "ipr_guildes.png"), p,
+                width = attr(p,"width"), height = attr(p,"height"), dpi=200, bg="white")
+```
+
+
+## Exemples clés
+
+> Les appels ci‑dessous suivent **exactement** tes fonctions et signatures.  
+> (En mode offline, on affiche les images du cache ; en online, on calcule et on affiche.)
+
+### 1. Planche IPR (notes, effectifs, métriques)
+
+```{r planche-ipr}
+if (RUN_ONLINE) {
+  library(valorisationPoissons)
+  make_ipr_planche(yaml_path = YAML_PATH, station = STATION, n_last = N_LAST)
+} else {
+  show_img("planche_ipr.png")
+}
+```
+*Notes* : `make_ipr_planche()` assemble `plot_ipr_histogram()`, `plot_effectifs_histogram()` et `plot_ipr_metrics()` (métriques observé vs modélisé) dans une planche *cowplot* avec titre/sous‑titre. Les seuils IPR (5/16/25/36) sont tracés en pointillés et les dates formatées `%d/%m/%y`. 
+
+
+### 2. Planche Habitats (heatmap, faciès, profondeur, surface)
+
+
+```{r planche-habitats}
+if (RUN_ONLINE) {
+  library(valorisationPoissons)
+  make_habitats_peche_planche(yaml_path = YAML_PATH, station = STATION, n_last = N_LAST)
+} else {
+  show_img("planche_habitats.png")
+}
+```
+La heatmap **Conditions/Habitats** interprète des champs `presence_*`, `abondance_*` et hydrologie (`libelle_conditions_hydrologiques`, `libelle_turbidite`, `libelle_tendance_debit`), avec recodages en classes **Oui/Non**, **Faible/Moyen/Fort** et **Bas–Moyen–Haut**. Les points sont empilés par *new scale fill* afin d’avoir plusieurs légendes successives (présence, abondance, hydrologie). 
+
+
+
+### 3. Planche Opérations (acteurs, protocoles, matériels, + conditions)
+
+
+```{r planche-operations}
+if (RUN_ONLINE) {
+  library(valorisationPoissons)
+  make_operations_peche_planche(yaml_path = YAML_PATH, station = STATION, n_last = N_LAST)
+} else {
+  show_img("planche_operations.png")
+}
+```
+Le panneau *Descriptif opération* regroupe **Commanditaire**, **Opérateur** (points), **Protocole & Prospection** (points) et **Matériel** (Anodes/Épuisettes) avec **étiquette numérique dans le point**, le tout **sans légende** et **étiquettes de facettes à gauche**. Les autres panneaux (longueur, largeur, profondeur, conductivité, température, puissance) proviennent de tes histogrammes dédiés. 
+
+
+
+### 4. Heatmap Faune (regroupement néotaxons + dédoublonnage lots)
+
+```{r heatmap-faune}
+if (RUN_ONLINE) {
+  library(valorisationPoissons)
+  plot_faune_heatmap(yaml_path = YAML_PATH, code_station = STATION, n_last = N_LAST)
+} else {
+  show_img("heatmap_faune.png")
+}
+```
+
+Points saillants :
+- **Regroupement** de codes ASPE → néotaxons (e.g. `BRB`→`BRE`→`BRX`, vairons → `PHX`, etc.) pour coller au script IPR.  
+- **Dédoublonnage** par `code_lot` puis **somme des effectifs** par date × (néo)taxon.  
+- Affichage **log10** des effectifs, **valeur en clair** centrée dans chaque tuile, **sans légende**. 
+
+
+
+### 5. Heatmap Habitats seule
+
+
+```{r heatmap-habitat}
+if (RUN_ONLINE) {
+  library(valorisationPoissons)
+  plot_habitat_heatmap(yaml_path = YAML_PATH, code_station = STATION, annee_debut = 2000, annee_fin = 2025)
+} else {
+  show_img("heatmap_habitat.png")
+}
+
+```
+
+### 6. Histogrammes “conditions environnementales”
+
+
+```{r hist-conditions, fig.height=9}
+if (RUN_ONLINE) {
+  library(cowplot)
+  p1 <- plot_profondeur_histogram(YAML_PATH, code_station=STATION, annee_debut=2000, annee_fin=2025)
+  p2 <- plot_surface_pechee_histogram(YAML_PATH, code_station=STATION, annee_debut=2000, annee_fin=2025)
+  p3 <- plot_longueur_pechee_histogram(YAML_PATH, code_station=STATION, annee_debut=2000, annee_fin=2025)
+  p4 <- plot_largeur_lame_eau_pechee_histogram(YAML_PATH, code_station=STATION, annee_debut=2000, annee_fin=2025)
+  p5 <- plot_conductivite_pechee_histogram(YAML_PATH, code_station=STATION, annee_debut=2000, annee_fin=2025)
+  p6 <- plot_temperature_instantanee_pechee_histogram(YAML_PATH, code_station=STATION, annee_debut=2000, annee_fin=2025)
+  p7 <- plot_puissance_pechee_histogram(YAML_PATH, code_station=STATION, annee_debut=2000, annee_fin=2025)
+  cowplot::plot_grid(p1,p2,p3,p4,p5,p6,p7, ncol=2, align="hv")
+} else {
+  knitr::include_graphics(c(
+    file.path(fig_dir,"hist_profondeur.png"),
+    file.path(fig_dir,"hist_surface.png"),
+    file.path(fig_dir,"hist_longueur.png"),
+    file.path(fig_dir,"hist_largeur.png"),
+    file.path(fig_dir,"hist_conductivite.png"),
+    file.path(fig_dir,"hist_temperature.png"),
+    file.path(fig_dir,"hist_puissance.png")
+  ))
+}
+```
+
+Chaque fonction applique le **tri chronologique**, conserve les **N dernières dates distinctes (`n_last`)**, formate les **étiquettes de dates** et produit un *bar chart* propre. 
+
+
+### 7. Faciès — Importance relative
+
+```{r facies-importance}
+if (RUN_ONLINE) {
+  library(valorisationPoissons)
+  plot_facies_importance(yaml_path = YAML_PATH, code_station = STATION, annee_debut = 2000, annee_fin = 2025, n_last = N_LAST)
+} else {
+  show_img("hist_facies_importance.png")
+}
+```
+
+Le parsing des chaînes “importance relative” + “libellés de faciès” harmonise les modalités (Courant, Plat, Profond) et **complète la grille** par date×modalité (zéro explicite si absent), avec couleurs dédiées. 
+
+
+
+### 8. IPR 3×3 (attendu × observé) — par opération
+
+```{r ipr-3x3}
+if (RUN_ONLINE) {
+  library(valorisationPoissons)
+  ipr_heatmap_3x3(
+    yaml_path = YAML_PATH, code_operation = CODE_OP,
+    show_axis_titles = TRUE, show_axis_text = TRUE
+  )
+} else {
+  show_img("ipr_3x3.png")
+}
+```
+
+La matrice 3×3 catégorise **L1/L2/L3** (probabilité IPR) vs **C1/C2/C3** (effectif capturé, seuil `seuil_abondant`). Les **taxons contributifs** et leurs **noms vernaculaires** sont codés en dur pour une lecture immédiate.
+
+
+
+### 9. Planche multi‑opérations IPR (n dernières opérations)
+
+
+```{r planche-ipr-multi}
+if (RUN_ONLINE) {
+  library(valorisationPoissons)
+  make_analyse_pop_IPR_planche(
+    yaml_path = YAML_PATH, station = STATION, annee_debut = 2000, n_last = N_LAST
+  )
+} else {
+  show_img("planche_ipr_multi.png")
+}
+```
+
+La planche compose automatiquement les vignettes **du plus ancien au plus récent**, conserve les **valeurs d’axes** dans chaque vignette et mutualise les **titres d’axes** pour une lecture compacte. Possibilité d’ajouter en bas le panneau **Guildes écologiques**.
+
+---
+
+### 10. (Annexe) Guildes écologiques IPR
+
+
+```{r guildes}
+if (RUN_ONLINE) {
+  library(valorisationPoissons)
+  graph_modalites_ipr(text_size = 4)
+} else {
+  show_img("ipr_guildes.png")
+}
+```
+
+
+
+## Reproductibilité & bonnes pratiques
+
+- **Chunks offline par défaut** : la vignette est *safe* pour CRAN/pkgdown/RPubs.  
+- **Pour la version connectée**, définir en entête `params$run_online: true` et ajuster `yaml_path` / `station`. Tous les appels **utilisent tes fonctions exportées** qui se connectent via `connect_pg()` et **sécurisent** `search_path` & `sslmode`.
+- **Cache d’images** : exécuter une fois la section “Pré‑générer le cache offline” pour remplir `vignettes/fig-rpubs/*.png`.
+
+### Session info
+
+
+```{r session-info}
+sessionInfo()
+```
+
+
+
+## 2) Intégration au package (DESCRIPTION, build, site)
+
+1. **DESCRIPTION**  
+   Assure‑toi d’avoir :  
+   - `Suggests: knitr, rmarkdown, cowplot, ggnewscale, ggtext` (et packages utilisés).  
+   - `VignetteBuilder: knitr`.  
+   `{fusen}` a déjà posé les bases via `inflate()`. 
+   
+   2. **Génération**  
+   - Crée la vignette : place le fichier ci‑dessus dans `vignettes/`.  
+   - (Optionnel) sur poste connecté BDD, **knit** en *online* pour remplir le cache, puis repasse en *offline*.  
+   - `devtools::build_vignettes()` ou `pkgbuild::build(vignettes = TRUE)`.
+
+3. **Site pkgdown** (optionnel)  
+   - `usethis::use_pkgdown()` puis `pkgdown::build_site()` — la vignette se retrouvera sous **Articles**.
+
+4. **Publication RPubs**  
+   - Depuis RStudio : *Knit* → *Publish* → *RPubs*.  
+   - Ou en code :
+     ```r
+     html <- rmarkdown::render("vignettes/valorisationPoissons_RPubs.Rmd",
+                               params = list(run_online = FALSE))
+     rpubs::rpubsUpload(
+       title   = "valorisationPoissons — Exemples illustrés",
+       htmlFile = html
+     )
+     ```
+   > Le mode *offline* garantit que **RPubs ne dépend pas** de ta base.  
+
+
+

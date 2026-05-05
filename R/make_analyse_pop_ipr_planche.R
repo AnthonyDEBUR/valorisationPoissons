@@ -95,6 +95,10 @@ make_analyse_pop_IPR_planche <- function(
 
   
   # Extraction DES OPERATIONS IPR (AVEC EXCLUSION TYPOLOGIES)
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
   
   sql <- glue::glue("
     SELECT c.code_operation, o.date_operation
@@ -102,13 +106,13 @@ make_analyse_pop_IPR_planche <- function(
     JOIN   \"{schema}\".aspe_operations o
            ON c.code_operation = o.code_operation
     WHERE  c.code_station = $1
-      AND NOT (o.libelle_qualification_operation = ANY($2))
+{excl_clause}
   ")
 
   ops <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(station, exclure_typologies)   # <-- application du filtre
+    params = list(station)   # <-- application du filtre
   )
   if (!nrow(ops)) return(NULL)
 

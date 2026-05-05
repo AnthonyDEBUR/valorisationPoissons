@@ -88,6 +88,11 @@ plot_faune_heatmap <- function(
   
   # SQL + EXCLUSION TYPOLOGIES
   
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql <- glue::glue("
     SELECT 
       o.date_operation,
@@ -101,7 +106,7 @@ plot_faune_heatmap <- function(
     JOIN \"{schema_safe}\".aspe_stations s
          ON o.code_point_prelevement_aspe = s.code_point_prelevement_aspe
     WHERE {filtre_sql}
-      AND NOT (o.libelle_qualification_operation = ANY($4))   -- <-- [NOUVEAU]
+    {excl_clause}
       AND o.date_operation IS NOT NULL
       AND date_part('year', o.date_operation::timestamp)
             BETWEEN $2 AND $3
@@ -111,7 +116,7 @@ plot_faune_heatmap <- function(
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(param1, annee_debut, annee_fin, exclure_typologies)  # <-- [NOUVEAU]
+    params = list(param1, annee_debut, annee_fin) 
   )
   if (!nrow(df)) return(NULL)
 

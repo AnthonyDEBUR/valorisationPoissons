@@ -79,19 +79,24 @@ ipr_heatmap_3x3 <- function(
       stop("Veuillez fournir code_operation OU code_station OU code_point_prelevement_aspe.")
     }
 
-    # Filtrage ICI sur typologies
+    
+    excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+    
     sql_ops <- glue::glue("
       SELECT o.code_operation
       FROM qe.aspe_operations o
       JOIN qe.aspe_stations s
         ON s.code_point_prelevement_aspe = o.code_point_prelevement_aspe
       WHERE {filtre_sql}
-        AND NOT (o.libelle_qualification_operation = ANY($2))
+      {excl_clause}
         AND o.date_operation IS NOT NULL
       ORDER BY o.date_operation::date DESC;
     ")
 
-    ops <- DBI::dbGetQuery(con, sql_ops, params=list(param1, exclure_typologies))
+    ops <- DBI::dbGetQuery(con, sql_ops, params=list(param1))
     if (!nrow(ops)) return(NULL)
 
     # Toujours la dernière opération chronologiquement
@@ -176,9 +181,9 @@ ipr_heatmap_3x3 <- function(
   grid$fill_color <- dplyr::case_when(
     (grid$ligne=="L1" & grid$colonne=="C1") |
       (grid$ligne=="L2" & grid$colonne=="C2") |
-      (grid$ligne=="L3" & grid$colonne=="C3") ~ "#4daf4a",
+      (grid$ligne=="L3" & grid$colonne=="C3") ~ "#4682B4",
     (grid$ligne=="L1" & grid$colonne=="C3") |
-      (grid$ligne=="L3" & grid$colonne=="C1") ~ "#e41a1c",
+      (grid$ligne=="L3" & grid$colonne=="C1") ~ "#B4464B",
     TRUE ~ "#ffec8b"
   )
 

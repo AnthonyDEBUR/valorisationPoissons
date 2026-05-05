@@ -77,19 +77,24 @@ make_ipr_planche <- function(
 
   # Extraction des opérations IPR pour la station + EXCLUSION TYPOLOGIES
 
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql_ops <- glue::glue("
     SELECT c.code_operation, o.date_operation
     FROM {tbl_ipr_compl} c
     JOIN {tbl_ops} o
       ON c.code_operation = o.code_operation
     WHERE c.code_station = $1
-      AND NOT (o.libelle_qualification_operation = ANY($2))
+    {excl_clause}
   ")
 
   ops <- DBI::dbGetQuery(
     con,
     sql_ops,
-    params = list(station, exclure_typologies)  # <-- NOUVEAU
+    params = list(station)  
   )
   if (!nrow(ops)) return(NULL)
 

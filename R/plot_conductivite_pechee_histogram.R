@@ -75,6 +75,11 @@ plot_conductivite_pechee_histogram <- function(
   
   # 4) SQL sécurisé + filtre typologique
   
+  excl_clause <- if (length(exclure_typologies) > 0) {
+  quoted <- paste(DBI::dbQuoteString(con, exclure_typologies), collapse = ", ")
+  glue::glue("AND NOT (o.libelle_qualification_operation IN ({quoted}))")
+} else ""
+  
   sql <- glue("
     SELECT
       o.date_operation::date AS date_op,
@@ -82,7 +87,7 @@ plot_conductivite_pechee_histogram <- function(
     FROM {tbl_ops} o
     {join_sql}
     WHERE {filtre_sql}
-      AND NOT (o.libelle_qualification_operation = ANY($4))   -- <-- [NOUVEAU]
+    {excl_clause}
       AND EXTRACT(YEAR FROM o.date_operation::date)
             BETWEEN $2 AND $3
       AND o.conductivite IS NOT NULL
@@ -92,7 +97,7 @@ plot_conductivite_pechee_histogram <- function(
   df <- DBI::dbGetQuery(
     con,
     sql,
-    params = list(param1, annee_debut, annee_fin, exclure_typologies)  # <-- [NOUVEAU]
+    params = list(param1, annee_debut, annee_fin)  
   )
 
   if (nrow(df) == 0) {
